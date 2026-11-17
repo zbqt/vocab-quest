@@ -213,3 +213,12 @@ test("离线缓存清单包含新文件，版本号已递增", () => {
   assert.match(sw, /"\.\/cloud-sync\.js"/);
   assert.match(sw, /VERSION = "vq-v[6-9]"/, "改了静态资源就要升缓存版本，否则老用户会一直吃旧缓存");
 });
+
+test("PWA 的 start_url 带分享码，否则加到桌面后点开是 403", () => {
+  const mf = JSON.parse(read("manifest.webmanifest"));
+  // 发布站不带 sharecode 直接返回 403（实测），start_url 丢了参数图标就是个死链
+  assert.match(mf.start_url, /sharecode=/, "start_url 必须带 sharecode，否则主屏图标点开是 403 错误页");
+  assert.match(mf.start_url, /^\.\//, "start_url 用相对路径，换域名不用改");
+  assert.equal(mf.scope, "./");
+  assert.equal(mf.display, "standalone");
+});
