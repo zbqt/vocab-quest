@@ -21,8 +21,30 @@
   }
   function supported() { return !!(getSynth() && hasCtor()); }
 
+  /* ---------- 在线发音兜底 ----------
+   * 国产安卓浏览器（vivo / 小米 / QQ / 夸克 等）大多没有 speechSynthesis，
+   * 国产安卓机也普遍没装英文语音包。光靠原生 TTS，这些机器就是死的。
+   * 所以备一条 mp3 通道：拿不到原生能力时自动改用在线音频，用户无感。
+   * 缺点是要联网；好处是「能不能响」不再取决于浏览器和系统语音包。 */
+  var AUDIO_SOURCES = [
+    function (w) { return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&type=2"; }, // 美音
+    function (w) { return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&type=1"; }  // 英音
+  ];
+  var currentAudio = null;
+
+  function stopAudio() {
+    if (!currentAudio) return;
+    try {
+      currentAudio.pause();
+      currentAudio.removeAttribute("src");
+      currentAudio.load();
+    } catch (e) {}
+    currentAudio = null;
+  }
+
   var REASON_TEXT = {
-    unsupported: "这个浏览器不支持朗读，换 Chrome 或 Safari 试试",
+    unsupported: "这个浏览器既不能朗读，在线发音也没加载成功，检查一下网络",
+    "audio-unavailable": "在线发音没加载成功，检查一下网络，或换 Chrome / Safari",
     "not-allowed": "浏览器要求先点一下页面才能发声，点任意位置再试",
     "synthesis-failed": "语音合成失败，系统的语音引擎可能异常",
     "language-unavailable": "系统里没有英文语音包，到设置里下载一个",
@@ -105,6 +127,72 @@
     return u;
   }
 
+  /* 走 mp3 通道。多个源依次重试，任何一个成功就算成功。 */
+  function speakViaAudio(text, hooks, finish) {
+    var word = String(text).trim();
+    if (!word) { finish(false, "empty"); return false; }
+    if (typeof global.Audio !== "function") { finish(false, "unsupported"); return false; }
+
+    stopAudio();
+    var idx = 0;
+    playNext();
+    return true;
+
+    function playNext() {
+      if (idx >= AUDIO_SOURCES.length) { finish(false, "audio-unavailable"); return; }
+      var a;
+      try { a = new global.Audio(AUDIO_SOURCES[idx++](word)); }
+      catch (e) { finish(false, "audio-unavailable"); return; }
+
+      currentAudio = a;
+      a.preload = "auto";
+      var retried = false;
+      var stall = null;
+
+      function clearStall() { if (stall) { clearTimeout(stall); stall = null; } }
+
+      a.onplaying = function () { clearStall(); if (hooks.onStart) hooks.onStart(); };
+      a.onended = function () { clearStall(); if (currentAudio === a) currentAudio = null; finish(true); };
+      a.onerror = function () {
+        clearStall();
+        if (retried) return;
+        retried = true;
+        playNext(); // 换下一个源（比如这个没收录该词）
+      };
+
+      // 卡住不发事件时（弱网/被拦），别让按钮永远停在"播放中"
+      stall = setTimeout(function () {
+        if (currentAudio !== a || retried) return;
+        var rs = 0;
+        try { rs = a.readyState || 0; } catch (e) {}
+        if (rs >= 2) return; // 已经在下载/可播了，只是慢
+        retried = true;
+        playNext();
+      }, 4000);
+      if (stall && typeof stall.unref === "function") stall.unref();
+
+      var p;
+      try { p = a.play(); } catch (e) { clearStall(); playNext(); return; }
+      if (p && typeof p.then === "function") {
+        p.catch(function (err) {
+          clearStall();
+          // 手势不足时换源也没用，直接说清楚，别让用户干等
+          if (err && err.name === "NotAllowedError") { finish(false, "not-allowed"); return; }
+          if (retried) return;
+          retried = true;
+          playNext();
+        });
+      }
+    }
+  }
+
+  // 原生通道失败、且一个字都没读出来时，才轮到音频通道（已出声就绝不重来，避免播两遍）
+  function canFallback(reason) {
+    return reason === "unsupported" || reason === "synthesis-failed" ||
+      reason === "language-unavailable" || reason === "voice-unavailable" ||
+      reason === "not-started";
+  }
+
   /* ---------- 主入口 ---------- */
   /**
    * @param {string} text
@@ -117,8 +205,9 @@
       if (hooks.onDone) hooks.onDone(ok, reason || (ok ? "" : "not-started"));
     });
 
-    if (!supported()) { finish(false, "unsupported"); return false; }
     if (!text || !String(text).trim()) { finish(false, "empty"); return false; }
+    // 浏览器压根没有朗读能力（国产安卓浏览器常见）：直接走音频通道
+    if (!supported()) return speakViaAudio(text, hooks, finish);
 
     bindVoices();
     var s = getSynth();
@@ -140,11 +229,11 @@
 
     function start() {
       var live = getSynth();
-      if (!live) { finish(false, "unsupported"); return; }
+      if (!live) { speakViaAudio(text, hooks, finish); return; }
 
       var u;
       try { u = buildUtterance(text, voice); }
-      catch (e) { finish(false, "synthesis-failed"); return; }
+      catch (e) { speakViaAudio(text, hooks, finish); return; }
 
       var started = false, settled = false;
       var watchdog = null, grace = null, giveUp = null;
@@ -161,6 +250,11 @@
         if (settled) return;
         settled = true;
         clearTimers();
+        // 一个字都没读出来 + 属于可兜底的原因 → 改用在线音频，用户不必知道
+        if (!ok && !started && canFallback(reason)) {
+          speakViaAudio(text, hooks, finish);
+          return;
+        }
         finish(ok, reason);
       }
 
@@ -222,6 +316,8 @@
       if (String(list[i].lang || "").toLowerCase().indexOf("en") === 0) english.push(list[i]);
     }
     return {
+      mode: supported() ? "native" : "audio",
+      ua: String((global.navigator && global.navigator.userAgent) || ""),
       supported: supported(),
       totalVoices: list.length,
       englishVoices: english.map(function (v) { return v.name + " (" + v.lang + ")"; }),
@@ -249,10 +345,12 @@
 
   global.VQSpeech = {
     speak: speak,
+    stop: stopAudio,
     diagnose: diagnose,
     reasonText: reasonText,
     pickVoice: pickVoice,
     get supported() { return supported(); },
+    get mode() { return supported() ? "native" : "audio"; },
     get isWeChat() { return /MicroMessenger/i.test(global.navigator ? global.navigator.userAgent : ""); }
   };
 })(typeof window !== "undefined" ? window : this);

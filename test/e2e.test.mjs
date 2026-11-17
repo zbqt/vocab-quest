@@ -339,14 +339,58 @@ test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮�
   assert.equal(ctx.$("audioStatus").textContent, "");
 });
 
-test("没有语音引擎的浏览器：发音不抛错，按钮可重试", () => {
+test("没有语音引擎的浏览器：自动改用在线发音，按钮能正常复位", () => {
   const ctx = boot("cet4");
   delete ctx.win.speechSynthesis;
   delete ctx.win.SpeechSynthesisUtterance;
+  const urls = [];
+  ctx.win.Audio = class {
+    constructor(u) { this.src = u; urls.push(u); }
+    play() { if (this.onplaying) this.onplaying(); if (this.onended) this.onended(); return Promise.resolve(); }
+    pause() {} removeAttribute() {} load() {}
+  };
   ctx.win.showAudio("abandon", "");
-  assert.doesNotThrow(() => ctx.win.playWord("abandon"));
+  assert.doesNotThrow(() => ctx.win.playWord("abandon"), "拿不到原生朗读也不能抛错");
+  assert.equal(urls.length, 1, "应改走在线音频，而不是干巴巴报不支持");
+  assert.ok(/youdao/.test(urls[0]) && /abandon/.test(urls[0]), "音频地址要带上被点的词：" + urls[0]);
+  assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "播放成功后按钮回到可重播状态");
+  assert.equal(ctx.$("playBtn").disabled, false);
+});
+
+test("原生朗读失败时自动转在线发音，不让用户看到一句报错就结束", () => {
+  const ctx = boot("cet4");
+  const urls = [];
+  ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
+    getVoices() { return []; },
+    cancel() {},
+    speak() { throw new Error("engine boom"); }
+  };
+  ctx.win.Audio = class {
+    constructor(u) { urls.push(u); }
+    play() { if (this.onplaying) this.onplaying(); if (this.onended) this.onended(); return Promise.resolve(); }
+    pause() {} removeAttribute() {} load() {}
+  };
+  ctx.win.showAudio("abandon", "");
+  assert.doesNotThrow(() => ctx.win.playWord("abandon"), "原生引擎抛异常也不能崩");
+  assert.equal(urls.length, 1, "原生引擎炸了要兜到在线音频");
+  assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放");
+});
+
+test("在线发音也失败：给出可读原因并允许重试，不卡在「播放中」", async () => {
+  const ctx = boot("cet4");
+  delete ctx.win.speechSynthesis;
+  delete ctx.win.SpeechSynthesisUtterance;
+  ctx.win.Audio = class {
+    constructor() {}
+    play() { const e = new Error("no"); e.name = "NotSupportedError"; return Promise.reject(e); }
+    pause() {} removeAttribute() {} load() {}
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon");
+  await new Promise((r) => setTimeout(r, 20));
   assert.equal(ctx.$("playBtn").textContent, "🔊 重试");
-  assert.ok(ctx.$("audioStatus").textContent.includes("不支持"), "应说明浏览器不支持：" + ctx.$("audioStatus").textContent);
+  assert.ok(ctx.$("audioStatus").textContent.includes("在线发音"), "要说明是「在线发音」没加载成功：" + ctx.$("audioStatus").textContent);
   assert.equal(ctx.$("playBtn").disabled, false);
 });
 
@@ -416,20 +460,6 @@ test("引擎不派发 onstart 但在真的说话：不重试、不会播两遍",
 
   await new Promise((r) => setTimeout(r, 700)); // 越过 600ms 的 watchdog
   assert.deepEqual(spoken, ["abandon"], "已经在说话就不该重试");
-});
-
-test("语音引擎 speak 抛异常：不崩，按钮回到可重试", () => {
-  const ctx = boot("cet4");
-  ctx.win.speechSynthesis = {
-    speaking: false, pending: false, paused: false,
-    cancel() {},
-    getVoices() { return []; },
-    speak() { throw new Error("engine boom"); }
-  };
-  ctx.win.showAudio("abandon", "");
-  assert.doesNotThrow(() => ctx.win.playWord("abandon"));
-  assert.equal(ctx.$("playBtn").textContent, "🔊 重试");
-  assert.equal(ctx.$("playBtn").disabled, false);
 });
 
 test("合成被浏览器拦截（not-allowed）时给出可操作提示", () => {

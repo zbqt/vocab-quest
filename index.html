@@ -90,10 +90,13 @@ footer a{color:#5b6cff;text-decoration:none;font-weight:700}
   <footer>
     四级闯关直达：<a href="game.html?cat=cet4">进入四级闯关游戏 →</a><br>
     各阶段闯关支持「📖 顺序闯关 / 🎲 乱序闯关」双模式 · 单击发音 · 完全离线可用<br>
-    数据来源：有道词典开源词书 · 发音由浏览器自带语音合成 · 每关覆盖本关全部单词
+    数据来源：有道词典开源词书 · 发音优先用系统语音，系统不支持时自动改用在线发音 · 每关覆盖本关全部单词
+    <div style="margin-top:10px"><button type="button" id="helpLink" class="btn btn-ghost" style="font-size:12px;padding:6px 12px">🔧 没声音 / 装不到桌面？点这里</button></div>
+    <div id="helpBox" style="display:none;text-align:left;margin:12px auto 0;max-width:520px;background:#fff;border:1px solid #e6e9f2;border-radius:12px;padding:14px 16px;color:#4a5168;font-size:13px;line-height:1.9"></div>
   </footer>
 </div>
 <script src="stats.js"></script>
+<script src="tts.js"></script>
 <script src="cloud-sync.js"></script>
 <script>
 /* 首页只读统计文件（0.4KB），不再加载 700KB 词库；数字由 npm run gen:stats 生成 */
@@ -112,6 +115,54 @@ footer a{color:#5b6cff;text-decoration:none;font-weight:700}
 if(window.VQCloud){
   VQCloud.mount(document.getElementById("cloudMount"),{});
 }
+</script>
+<script>
+/* 自助诊断：手机端往往说不清"我是哪个浏览器、为什么不响"，这里把事实摆出来，截图就能定位 */
+(function(){
+  var btn=document.getElementById("helpLink"),box=document.getElementById("helpBox");
+  if(!btn||!box)return;
+  function line(k,v){return "<div style=\"display:flex;gap:10px;padding:2px 0\"><b style=\"flex:0 0 84px;color:#2c3448\">"+k+"</b><span style=\"flex:1;word-break:break-all\">"+v+"</span></div>";}
+
+  btn.onclick=function(){
+    if(box.style.display!=="none"){box.style.display="none";btn.textContent="🔧 没声音 / 装不到桌面？点这里";return;}
+    var d={};try{d=(window.VQSpeech&&VQSpeech.diagnose())||{};}catch(e){}
+    var standalone=false;
+    try{standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;}catch(e){}
+    var ua=d.ua||navigator.userAgent||"未知";
+    var en=d.englishVoices||[];
+    var tips=[];
+
+    if(d.mode==="audio"){
+      tips.push("这个浏览器<b>没有系统朗读能力</b>，已自动改用<b>在线发音</b>：点单词能响，但要联网。想离线发音就换 Chrome / Edge / Safari。");
+    }else if(d.supported&&en.length===0){
+      tips.push("系统里有朗读接口，但<b>一个英文音色都没装</b>，会在出声失败后自动转在线发音。彻底解决：手机设置里装一个英文语音包。");
+    }
+    if(!standalone){
+      tips.push("<b>装到桌面</b>各家浏览器叫法不同，在菜单里找这几个字：<br>· Chrome / Edge：<b>安装应用</b> 或 添加到主屏幕<br>· 华为 / 小米 / vivo / OPPO 自带浏览器：<b>添加到桌面</b><br>· QQ / 夸克：菜单 → <b>添加到桌面</b><br>· iPhone Safari：底部分享 ⬆️ → <b>添加到主屏幕</b><br>如果菜单里一个都没有，说明这个浏览器不支持，换系统自带浏览器或 Chrome。");
+    }
+    if(/MicroMessenger/i.test(ua))tips.push("现在是<b>微信内置浏览器</b>，语音和装桌面都受限：点右上角「···」→「在浏览器打开」。");
+
+    box.innerHTML=
+      "<div style=\"font-weight:800;color:#2c3448;margin-bottom:8px\">当前环境</div>"+
+      line("浏览器",ua)+
+      line("发声方式",d.mode==="native"?"系统语音（可离线）":"浏览器无朗读能力 → 在线发音")+
+      line("英文音色",d.supported?(en.length?en.length+" 个":"0 个（没装语音包）"):"该浏览器不支持")+
+      line("已装到桌面",standalone?"是":"否，现在还在浏览器标签里")+
+      line("网络",navigator.onLine?"正常":"断网")+
+      (tips.length?"<div style=\"font-weight:800;color:#2c3448;margin:12px 0 6px\">该怎么办</div>"+tips.map(function(t,i){return "<div style=\"padding:2px 0\">"+(i+1)+". "+t+"</div>";}).join(""):"")+
+      "<div style=\"margin-top:12px;display:flex;gap:8px;flex-wrap:wrap\"><button type=\"button\" id=\"helpCopy\" class=\"btn btn-ghost\" style=\"font-size:12px;padding:5px 10px\">复制浏览器信息</button><span id=\"helpCopyTip\" style=\"color:#5b6cff;font-size:12px\"></span></div>";
+
+    document.getElementById("helpCopy").onclick=function(){
+      var tip=document.getElementById("helpCopyTip");
+      var text="UA: "+ua+"\n发声方式: "+(d.mode||"?")+"\n英文音色: "+(d.supported?en.length:"不支持")+"\n已装到桌面: "+standalone;
+      var ok=function(){tip.textContent="已复制";setTimeout(function(){tip.textContent="";},1500);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(ok,function(){});}
+      else{tip.textContent="长按上方文字选中复制";}
+    };
+    box.style.display="block";
+    btn.textContent="收起";
+  };
+})();
 </script>
 <script>
 /* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */
