@@ -1,0 +1,37 @@
+词库数据许可 / Vocabulary Data License
+=====================================
+
+适用范围 / Scope
+----------------
+本仓库中的词库文件：
+
+  vocab.js      CET-4 词库
+  vocab_c6.js   CET-6 词库
+  vocab_gz.js   高中词库
+  vocab_cz.js   初中词库
+
+协议 / License
+--------------
+Creative Commons Attribution-NonCommercial 4.0 International
+(CC BY-NC 4.0) — https://creativecommons.org/licenses/by-nc/4.0/
+
+你可以自由地共享、复制、修改这些词库数据，但必须：
+1. 署名（Attribution）—— 注明数据来自本项目，并保留原始词典数据来源说明；
+2. 非商业使用（NonCommercial）—— 不得用于商业目的、不得打包售卖、
+   不得用于付费课程或商业产品。
+
+You are free to share and adapt the vocabulary data for non-commercial
+purposes only, provided you give appropriate credit.
+
+来源与免责 / Source & Disclaimer
+-------------------------------
+词库整理自有道词典公开词书数据（CET-4 / CET-6 / 高中 / 初中），音标为美式音标。
+原始词典内容的版权归其权利人所有，本项目仅做格式整理、去重与音标补全，
+不主张对词条内容本身的著作权。
+
+本项目仅供个人学习使用。如权利人认为此处使用不当，请联系仓库作者，
+将立即删除相关内容。
+
+The underlying dictionary content belongs to its respective rights holders.
+This project only reformats and cleans the data for personal study use.
+Contact the repository owner for any takedown request.

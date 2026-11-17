@@ -88,43 +88,27 @@ if(CFG.game){
   gb.textContent="🎮 进入"+CFG.name+"闯关游戏";
 }
 
-let audioEl=null,audioToken=0;
-const audioCache=new Map();
-function getAudio(en){
-  if(audioCache.has(en))return audioCache.get(en);
-  const a=new Audio("https://dict.youdao.com/dictvoice?audio="+encodeURIComponent(en)+"&type=2");
-  a.preload="auto";
-  if(audioCache.size>=40){const k=audioCache.keys().next().value;audioCache.delete(k);}
-  audioCache.set(en,a);
-  return a;
+let audioToken=0;
+// 浏览器原生 TTS：不依赖任何外部发音接口，离线也能读
+function speakWord(en,onDone){
+  let done=false;
+  const end=ok=>{if(done)return;done=true;onDone(ok);};
+  try{
+    if(!("speechSynthesis" in window)||typeof SpeechSynthesisUtterance!=="function"){end(false);return;}
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(en);
+    u.lang="en-US";u.rate=0.85;u.pitch=1;
+    u.onend=()=>end(true);
+    u.onerror=()=>end(false);
+    speechSynthesis.speak(u);
+    setTimeout(()=>end(true),8000);
+  }catch(e){end(false);}
 }
 function playWord(en,btn){
   const my=++audioToken;
   const reset=()=>{if(my===audioToken){btn.textContent="🔊";btn.classList.remove("playing");}};
   btn.textContent="⏳";btn.classList.add("playing");
-  const finish=ok=>{if(my!==audioToken)return;reset();};
-  const fallback=()=>{
-    if(my!==audioToken)return;
-    try{
-      if(!("speechSynthesis" in window)){reset();return;}
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(en);
-      u.lang="en-US";u.rate=0.85;
-      u.onend=()=>finish(true);u.onerror=()=>reset();
-      speechSynthesis.speak(u);
-    }catch(e){reset();}
-  };
-  try{
-    const a=getAudio(en);
-    if(audioEl&&audioEl!==a)audioEl.pause();
-    audioEl=a;
-    let usedFallback=false;
-    a.onended=()=>{if(!usedFallback)finish(true);};
-    a.onerror=()=>{usedFallback=true;fallback();};
-    try{a.currentTime=0;}catch(e){}
-    const p=a.play();
-    if(p)p.catch(()=>{usedFallback=true;fallback();});
-  }catch(e){fallback();}
+  speakWord(en,()=>{if(my!==audioToken)return;reset();});
 }
 
 const unitsBox=document.getElementById("units");

@@ -303,3 +303,41 @@ test("「这词我会」按钮：跳过当前题、推到 60 天后、结算如�
   assert.ok(ctx.$("resSub").textContent.includes("跳过"), "结算如实报出跳过数");
   assert.equal(ctx.$("resTitle").textContent, "今天的学习完成");
 });
+
+test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮复位", () => {
+  // 静态检查：页面里不允许再出现任何发音接口外链
+  for (const f of ["game.html", "words.html", "index.html"]) {
+    assert.ok(!/dict\.youdao\.com|dictvoice|https?:\/\//.test(read(f)), f + " 不应包含外部资源链接");
+  }
+
+  const ctx = boot("cet4");
+  let audioMade = 0, spoken = [];
+  ctx.win.Audio = class { constructor() { audioMade++; } play() { return Promise.resolve(); } pause() {} };
+  ctx.win.speechSynthesis = {
+    cancel() {},
+    speak(u) { spoken.push(u); if (u.onend) u.onend(); }
+  };
+
+  ctx.win.showAudio("abandon", "ə'bændən");
+  assert.equal(ctx.$("phonetic").textContent, "/ə'bændən/");
+  ctx.win.playWord("abandon");
+
+  assert.equal(audioMade, 0, "不应创建 Audio 去拉远程音频");
+  assert.equal(spoken.length, 1, "应调用一次语音合成");
+  assert.equal(spoken[0].lang, "en-US");
+  assert.equal(spoken[0].rate, 0.85);
+  assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "读完按钮回到可重播状态");
+  assert.equal(ctx.$("playBtn").disabled, false);
+  assert.equal(ctx.$("audioStatus").textContent, "");
+});
+
+test("没有语音引擎的浏览器：发音不抛错，按钮可重试", () => {
+  const ctx = boot("cet4");
+  delete ctx.win.speechSynthesis;
+  delete ctx.win.SpeechSynthesisUtterance;
+  ctx.win.showAudio("abandon", "");
+  assert.doesNotThrow(() => ctx.win.playWord("abandon"));
+  assert.equal(ctx.$("playBtn").textContent, "🔊 重试");
+  assert.ok(ctx.$("audioStatus").textContent.includes("语音引擎"));
+  assert.equal(ctx.$("playBtn").disabled, false);
+});

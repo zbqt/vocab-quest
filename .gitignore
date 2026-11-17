@@ -1,4 +1,5 @@
 node_modules/
 test/_inline.js
+tools/.phonetic-cache.json
 *.log
 .DS_Store

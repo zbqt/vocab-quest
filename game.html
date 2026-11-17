@@ -458,18 +458,27 @@ function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show")
 function todayStr(){return VQ.dayKey(new Date());}
 function renderHearts(){$("hpHearts").textContent=G&&G.mode==="play"?Array(3).fill(0).map((_,i)=>i<G.hp?"♥":"♡").join(" "):"—";}
 
-/* ================= 发音 ================= */
-let audioEl=null,audioToken=0;
-const audioCache=new Map();
-function getAudio(en){
-  if(audioCache.has(en))return audioCache.get(en);
-  const a=new Audio("https://dict.youdao.com/dictvoice?audio="+encodeURIComponent(en)+"&type=2");
-  a.preload="auto";
-  if(audioCache.size>=30){const k=audioCache.keys().next().value;audioCache.delete(k);}
-  audioCache.set(en,a);
-  return a;
+/* ================= 发音（浏览器原生 TTS，无外链、离线可用） ================= */
+let audioToken=0;
+// 统一的朗读入口：ok=true 表示正常读完，false 表示浏览器不支持或语音引擎报错
+function speakWord(en,onDone){
+  let done=false;
+  const end=ok=>{if(done)return;done=true;onDone(ok);};
+  try{
+    if(!("speechSynthesis" in window)||typeof SpeechSynthesisUtterance!=="function"){end(false);return;}
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(en);
+    u.lang="en-US";u.rate=0.85;u.pitch=1;
+    u.onend=()=>end(true);
+    u.onerror=()=>end(false);
+    speechSynthesis.speak(u);
+    setTimeout(()=>end(true),8000); // 兜底：个别浏览器不触发 onend，避免按钮卡在「播放中」
+  }catch(e){end(false);}
 }
-function preloadWord(en){try{if(en)getAudio(en);}catch(e){}}
+function preloadWord(en){
+  if(!en)return;
+  try{if("speechSynthesis" in window&&speechSynthesis.getVoices().length===0)speechSynthesis.getVoices();}catch(e){}
+}
 function playWord(en){
   const my=++audioToken;
   const setState=(label,status,playing)=>{
@@ -480,34 +489,10 @@ function playWord(en){
   };
   if(!en){setState("🔊 播放发音","该词暂无发音",false);return;}
   setState("⏳ 播放中…","播放中…",true);
-  const finish=ok=>{
+  speakWord(en,ok=>{
     if(my!==audioToken)return;
-    setState(ok?"🔊 重新播放":"🔊 重试",ok?"":"发音加载失败，请检查网络或重试",false);
-  };
-  const fallback=()=>{
-    if(my!==audioToken)return;
-    try{
-      if(!("speechSynthesis" in window)){finish(false);return;}
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(en);
-      u.lang="en-US";u.rate=0.85;
-      u.onend=()=>finish(true);
-      u.onerror=()=>finish(false);
-      speechSynthesis.speak(u);
-    }catch(e){finish(false);}
-  };
-  try{
-    const a=getAudio(en);
-    if(audioEl&&audioEl!==a)audioEl.pause();
-    audioEl=a;
-    let usedFallback=false;
-    a.onended=()=>{if(!usedFallback)finish(true);};
-    a.onerror=()=>{usedFallback=true;fallback();};
-    try{a.currentTime=0;}catch(e){}
-    const p=a.play();
-    if(p)p.catch(()=>{usedFallback=true;fallback();});
-    setTimeout(()=>{if(my===audioToken&&!usedFallback&&audioEl===a&&!a.paused&&a.currentTime===0)fallback();},6000);
-  }catch(e){fallback();}
+    setState(ok?"🔊 重新播放":"🔊 重试",ok?"":"这台设备的语音引擎不可用，可换个浏览器试试",false);
+  });
 }
 function showAudio(en,ph){
   $("audioRow").style.display="flex";
@@ -929,9 +914,7 @@ function renderPlace(){
   $("placeFill").style.width=(P.idx/P.qs.length*100)+"%";
   $("placeWord").textContent=q.en;
   $("placePh").textContent=q.ph?"/"+q.ph+"/":"";
-  $("placePlay").onclick=()=>{
-    try{const a=getAudio(q.en);if(a){a.currentTime=0;a.play().catch(()=>{});}}catch(e){}
-  };
+  $("placePlay").onclick=()=>{speakWord(q.en,()=>{});};
   $("placeFeedback").textContent="";$("placeFeedback").className="feedback";
   $("placeNext").style.display="none";
   const box=$("placeOptions");box.innerHTML="";
