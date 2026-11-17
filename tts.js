@@ -117,11 +117,17 @@
     try { if (s.paused) s.resume(); } catch (e) {}
   }
 
+  /* 语速：两条通道共用一个值，改这里就行。
+   * 0.75 比正常慢一档。背单词听得清比听得快重要，用户反馈「太快」后从 0.85 降下来。
+   * 注意：原生通道用 utterance.rate，mp3 通道用 audio.playbackRate，语义一致但实现不同，
+   * 忘记同步就会变成「换了个浏览器，语速突然变快」。 */
+  var SPEED = 0.75;
+
   function buildUtterance(text, voice) {
     var u = new global.SpeechSynthesisUtterance(text);
     if (voice) u.voice = voice;
     u.lang = (voice && voice.lang) || "en-US";
-    u.rate = 0.85;
+    u.rate = SPEED;
     u.pitch = 1;
     u.volume = 1;
     return u;
@@ -146,6 +152,13 @@
 
       currentAudio = a;
       a.preload = "auto";
+      // 放慢但尽量不变调（各浏览器前缀不同，都设一遍）
+      try {
+        a.preservesPitch = true;
+        a.mozPreservesPitch = true;
+        a.webkitPreservesPitch = true;
+      } catch (e) {}
+      try { a.defaultPlaybackRate = SPEED; a.playbackRate = SPEED; } catch (e) {}
       var retried = false;
       var stall = null;
 

@@ -790,8 +790,12 @@
   function interleave(wordQs, gQs, total, rng) {
     rng = rng || defaultRng;
     var out = wordQs.slice();
+    // 第一题永远留给本关的第一个单词：一上来就考语法，容易让人以为进错了关
+    var allIdx = out.map(function (_, i) { return i; });
+    var slotsFrom = allIdx.filter(function (i) { return i > 0; });
+    if (!slotsFrom.length) slotsFrom = allIdx;
     // 从高到低插入，保证前面的插入不会让后面的下标错位
-    var slots = rng(out.map(function (_, i) { return i; })).slice(0, gQs.length).sort(function (a, b) { return b - a; });
+    var slots = rng(slotsFrom).slice(0, gQs.length).sort(function (a, b) { return b - a; });
     gQs.forEach(function (g, i) { out.splice(slots[i], 0, g); });
     return out;
   }

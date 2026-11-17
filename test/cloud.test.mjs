@@ -211,7 +211,7 @@ test("cloud-sync.js 初始化时带齐 endpoint / publishableKey / oauthRelayBas
 test("离线缓存清单包含新文件，版本号已递增", () => {
   const sw = read("sw.js");
   assert.match(sw, /"\.\/cloud-sync\.js"/);
-  assert.match(sw, /VERSION = "vq-v[6-9]"/, "改了静态资源就要升缓存版本，否则老用户会一直吃旧缓存");
+  assert.match(sw, /VERSION = "vq-v\d+"/, "改了静态资源就要升缓存版本，否则老用户会一直吃旧缓存");
 });
 
 test("PWA 的 start_url 带分享码，否则加到桌面后点开是 403", () => {

@@ -333,7 +333,7 @@ test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮�
   assert.equal(audioMade, 0, "不应创建 Audio 去拉远程音频");
   assert.equal(spoken.length, 1, "应调用一次语音合成");
   assert.equal(spoken[0].lang, "en-US");
-  assert.equal(spoken[0].rate, 0.85);
+  assert.equal(spoken[0].rate, 0.75, "语速要比正常慢一档（用户反馈太快）");
   assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "读完按钮回到可重播状态");
   assert.equal(ctx.$("playBtn").disabled, false);
   assert.equal(ctx.$("audioStatus").textContent, "");
@@ -344,8 +344,9 @@ test("没有语音引擎的浏览器：自动改用在线发音，按钮能正�
   delete ctx.win.speechSynthesis;
   delete ctx.win.SpeechSynthesisUtterance;
   const urls = [];
+  const made = [];
   ctx.win.Audio = class {
-    constructor(u) { this.src = u; urls.push(u); }
+    constructor(u) { this.src = u; urls.push(u); made.push(this); }
     play() { if (this.onplaying) this.onplaying(); if (this.onended) this.onended(); return Promise.resolve(); }
     pause() {} removeAttribute() {} load() {}
   };
@@ -353,6 +354,7 @@ test("没有语音引擎的浏览器：自动改用在线发音，按钮能正�
   assert.doesNotThrow(() => ctx.win.playWord("abandon"), "拿不到原生朗读也不能抛错");
   assert.equal(urls.length, 1, "应改走在线音频，而不是干巴巴报不支持");
   assert.ok(/youdao/.test(urls[0]) && /abandon/.test(urls[0]), "音频地址要带上被点的词：" + urls[0]);
+  assert.equal(made[0].playbackRate, 0.75, "在线音频也要放慢，两种通道语速必须一致");
   assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "播放成功后按钮回到可重播状态");
   assert.equal(ctx.$("playBtn").disabled, false);
 });

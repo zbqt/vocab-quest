@@ -340,3 +340,13 @@ test("「这词我会」：跳过之后的词不再作为新词发放", () => {
   const q = VQ.dailyQueue(s, { today: TODAY, total: 4, newMax: 4, newFloor: 4, order: BANK8 });
   assert.deepEqual(q.words.map((x) => x.word), ["w2", "w3", "w4", "w5"]);
 });
+
+test("语法题不会排在第一题（第一题留给本关第一个单词）", () => {
+  const words = ["a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12"].map((w) => [w, "释义" + w, ""]);
+  const grammar = [1, 2, 3].map((n) => ({ q: "语法题" + n, a: "A", options: ["A", "B"], tip: "" }));
+  for (let i = 0; i < 40; i++) {
+    const sess = VQ.buildSession({ words: words.slice(), grammar: grammar.slice(), grammarN: 3, spellEvery: 3, mode: "play" });
+    assert.notEqual(sess.questions[0].type, "grammar", "第 " + (i + 1) + " 次生成时语法题跑到第一题了");
+    assert.equal(sess.questions.filter((q) => q.type === "grammar").length, 3, "语法题数量不能少");
+  }
+});
