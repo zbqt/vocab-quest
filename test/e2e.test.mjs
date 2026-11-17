@@ -9,7 +9,7 @@ const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (f) => fs.readFileSync(path.join(DIR, f), "utf8");
 const HTML = read("game.html");
 const INLINE = HTML.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
-const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "fsrs.js", "engine.js"];
+const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "fsrs.js", "engine.js", "cloud-sync.js"];
 
 function boot(cat = "cet4") {
   const dom = new JSDOM(HTML, {

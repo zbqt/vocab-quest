@@ -86,6 +86,7 @@ footer a{color:#5b6cff;text-decoration:none;font-weight:700}
       <div class="meta"><span id="cnt-c6">— 词</span><span class="arrow">→</span></div>
     </a>
   </div>
+  <div id="cloudMount"></div>
   <footer>
     四级闯关直达：<a href="game.html?cat=cet4">进入四级闯关游戏 →</a><br>
     各阶段闯关支持「📖 顺序闯关 / 🎲 乱序闯关」双模式 · 单击发音 · 完全离线可用<br>
@@ -93,6 +94,7 @@ footer a{color:#5b6cff;text-decoration:none;font-weight:700}
   </footer>
 </div>
 <script src="stats.js"></script>
+<script src="cloud-sync.js"></script>
 <script>
 /* 首页只读统计文件（0.4KB），不再加载 700KB 词库；数字由 npm run gen:stats 生成 */
 (function(){
@@ -104,6 +106,12 @@ footer a{color:#5b6cff;text-decoration:none;font-weight:700}
   document.getElementById("totalWords").textContent=VQ_STATS.total.toLocaleString();
   document.getElementById("uniqWords").textContent=VQ_STATS.uniq.toLocaleString();
 })();
+</script>
+<script>
+/* 云端存档：首页只做「登录 / 看云端有几本词库」，具体同步在各自词库页面里 */
+if(window.VQCloud){
+  VQCloud.mount(document.getElementById("cloudMount"),{});
+}
 </script>
 <script>
 /* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */

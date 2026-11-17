@@ -291,6 +291,7 @@ body.shuf .stars{color:#7c3aed}
       <button class="btn btn-ghost" id="expBtn">导出存档</button>
       <button class="btn btn-ghost" id="impBtn">导入存档</button>
     </div>
+    <div id="cloudMount"></div>
     <div class="foot-tip" id="dataMeta" style="margin-top:6px"></div>
   </div>
 
@@ -400,6 +401,7 @@ body.shuf .stars{color:#7c3aed}
 <script src="grammar.js"></script>
 <script src="fsrs.js"></script>
 <script src="engine.js"></script>
+<script src="cloud-sync.js"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -460,10 +462,13 @@ function load(){
   if(raw&&!raw.words&&((raw.masteredWords&&raw.masteredWords.length)||(raw.rescue&&raw.rescue.length)))LEGACY_MIGRATED=true;
   return VQ.normalizeState(raw,{units:CTX.units,bank:CTX.bank,today:VQ.dayKey(new Date())});
 }
-function save(){
+function save(opts){
+  opts=opts||{};
   const c={...S};Object.keys(c).forEach(k=>{if(k.indexOf("open_")===0)delete c[k];});
   try{localStorage.setItem(KEY,JSON.stringify(c));}
   catch(e){toast("存档写入失败，请先导出备份");}
+  // 版本号 + 防抖上传；没登录时只记版本号，不影响本地使用
+  if(!opts.silent&&window.VQCloud)VQCloud.touch(CAT);
 }
 $("expBtn").onclick=()=>{
   const blob=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
@@ -1131,6 +1136,25 @@ $("logoSub").textContent=CFG.name+"词汇闯关";
 $("footTip").textContent=CFG.name+"词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词";
 
 renderHome();
+
+/* ================= 云服务：账号登录 + 存档备份（本机存档仍是主存档） ================= */
+if(window.VQCloud){
+  window.__vqCloud=VQCloud.mount(document.getElementById("cloudMount"),{
+    book:CAT,
+    bookName:CFG.name,
+    getState:()=>S,
+    hasProgress:()=>Object.keys(S.words||{}).some(w=>{
+      const x=S.words[w];return !!x&&((x.seen||0)>0||(x.reps||0)>0);
+    }),
+    applyState:(payload)=>{
+      const next=VQ.normalizeState(payload,{units:CTX.units,bank:CTX.bank,today:VQ.dayKey(new Date())});
+      // 恢复云端存档时不要再把刚拉下来的东西推回去
+      S=next;save({silent:true});renderHome();
+    }
+  });
+  // 关页面/切后台时把待上传的改动再尽力推一次，不阻塞卸载
+  addEventListener("pagehide",()=>{try{VQCloud.flush();}catch(e){}});
+}
 </script>
 <script>
 /* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */

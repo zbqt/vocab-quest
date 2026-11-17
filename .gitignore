@@ -1,6 +1,7 @@
 node_modules/
 test/_inline.js
 tools/.phonetic-cache.json
+tools/.sdk-probe.js
 *.log
 .DS_Store
 tools/push-via-api.mjs
