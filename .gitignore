@@ -3,3 +3,4 @@ test/_inline.js
 tools/.phonetic-cache.json
 *.log
 .DS_Store
+tools/push-via-api.mjs

@@ -85,7 +85,9 @@ const CATS={
   cet4:{data:VOCAB,name:"英语四级",desc:"CET-4 大纲词汇",game:"game.html?cat=cet4"},
   c6:{data:VOCAB_C6,name:"英语六级",desc:"CET-6 大纲核心词汇",game:"game.html?cat=c6"}
 };
-const cat=CATS[(new URLSearchParams(location.search).get("cat")||"cet4").toLowerCase()]?new URLSearchParams(location.search).get("cat").toLowerCase():"cet4";
+// 先取原始参数并规范化，再查表；get() 在没有 cat 参数时返回 null，不能直接 .toLowerCase()
+const catQuery=(new URLSearchParams(location.search).get("cat")||"cet4").toLowerCase();
+const cat=CATS[catQuery]?catQuery:"cet4";
 const CFG=CATS[cat];
 document.title=CFG.name+" · 词库";
 document.getElementById("pageTitle").textContent=CFG.name;
