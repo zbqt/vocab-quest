@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>单词学习中心</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;display:flex;flex-direction:column}
+.wrap{max-width:880px;width:100%;margin:0 auto;padding:0 20px}
+header{padding:56px 0 28px;text-align:center}
+.logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(91,108,255,.25)}
+h1{font-size:26px;font-weight:800;letter-spacing:1px}
+.sub{color:#6b7280;font-size:14px;margin-top:8px}
+.stats{margin-top:14px;font-size:13px;color:#8a91a5}
+.stats b{color:#5b6cff}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding-bottom:24px}
+.card{display:block;background:#fff;border:1px solid #eef0f6;border-radius:18px;padding:26px 24px;text-decoration:none;color:inherit;box-shadow:0 2px 10px rgba(31,36,48,.04);transition:transform .18s,box-shadow .18s,border-color .18s;position:relative}
+.card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(91,108,255,.14);border-color:#d9ddff}
+.card:active{transform:translateY(-1px)}
+.card-icon{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:14px}
+.card h2{font-size:18px;font-weight:800}
+.card p{color:#6b7280;font-size:13px;margin-top:6px;line-height:1.6}
+.card .meta{margin-top:14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;color:#5b6cff}
+.card .arrow{color:#c3c8d8;font-size:16px;transition:transform .18s}
+.card:hover .arrow{transform:translateX(3px);color:#5b6cff}
+.card .game-link{position:absolute;inset:0}
+.cz .card-icon{background:#e8f6ee}.gz .card-icon{background:#fff4e5}.cet4 .card-icon{background:#eef1ff}.c6 .card-icon{background:#fdeef4}
+footer{margin-top:auto;padding:22px 0 30px;text-align:center;color:#a3a9ba;font-size:12px;line-height:1.8}
+footer a{color:#5b6cff;text-decoration:none;font-weight:700}
+@media(max-width:600px){
+  header{padding:36px 0 20px}
+  h1{font-size:22px}
+  .grid{grid-template-columns:1fr;gap:12px}
+  .card{padding:20px 18px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">📖</div>
+    <h1>单词学习中心</h1>
+    <div class="sub">选择一个阶段，开始你的词汇之旅</div>
+    <div class="stats">共收录 <b id="totalWords">—</b> 条词条 · 去重后 <b id="uniqWords">—</b> 个单词 · 全部带音标与真人发音</div>
+  </header>
+  <div class="grid">
+    <a class="card cz" href="words.html?cat=cz">
+      <div class="card-icon">🌱</div>
+      <h2>初中英语</h2>
+      <p>中考大纲核心词汇，打好基础，配套闯关游戏与发音练习。</p>
+      <div class="meta"><span id="cnt-cz">— 词</span><span class="arrow">→</span></div>
+    </a>
+    <a class="card gz" href="words.html?cat=gz">
+      <div class="card-icon">🌤️</div>
+      <h2>高中英语</h2>
+      <p>高考大纲词汇，稳步进阶，配套闯关游戏与发音练习。</p>
+      <div class="meta"><span id="cnt-gz">— 词</span><span class="arrow">→</span></div>
+    </a>
+    <a class="card cet4" href="words.html?cat=cet4">
+      <div class="card-icon">⛰️</div>
+      <h2>英语四级</h2>
+      <p>CET-4 大纲词汇，配套闯关游戏：词义匹配、拼写、语法与错词复习。</p>
+      <div class="meta"><span id="cnt-cet4">— 词</span><span class="arrow">→</span></div>
+    </a>
+    <a class="card c6" href="words.html?cat=c6">
+      <div class="card-icon">🚀</div>
+      <h2>英语六级</h2>
+      <p>CET-6 大纲核心词汇，冲刺提升，配套闯关游戏与发音练习。</p>
+      <div class="meta"><span id="cnt-c6">— 词</span><span class="arrow">→</span></div>
+    </a>
+  </div>
+  <footer>
+    四级闯关直达：<a href="game.html?cat=cet4">进入四级闯关游戏 →</a><br>
+    各阶段闯关支持「📖 顺序闯关 / 🎲 乱序闯关」双模式 · 单击发音 · 建议联网使用<br>
+    数据来源：有道词典开源词书 · 单词点击可发音 · 每关覆盖本关全部单词
+  </footer>
+</div>
+<script src="vocab_cz.js"></script>
+<script src="vocab_gz.js"></script>
+<script src="vocab.js"></script>
+<script src="vocab_c6.js"></script>
+<script>
+const COUNTS={"cz":VOCAB_CZ,"gz":VOCAB_GZ,"cet4":VOCAB,"c6":VOCAB_C6};
+let total=0;const uniq=new Set();
+Object.keys(COUNTS).forEach(k=>{
+  const n=COUNTS[k].reduce((s,u)=>s+u.words.length,0);
+  total+=n;
+  COUNTS[k].forEach(u=>u.words.forEach(w=>uniq.add(w[0].toLowerCase())));
+  const el=document.getElementById("cnt-"+k);
+  if(el)el.textContent=n+" 条";
+});
+document.getElementById("totalWords").textContent=total.toLocaleString();
+document.getElementById("uniqWords").textContent=uniq.size.toLocaleString();
+</script>
+</body>
+</html>

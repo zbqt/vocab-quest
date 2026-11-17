@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocab Quest</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#eef2ff;color:#1f2937;min-height:100vh;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+.app{max-width:900px;margin:0 auto;padding:14px}
+.card{background:#fff;border-radius:16px;box-shadow:0 4px 16px rgba(40,50,90,.08)}
+
+/* 顶部 */
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;margin-bottom:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo-box{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#6c7bff,#4653d4);color:#fff;display:grid;place-items:center;font-weight:800}
+.logo-text{font-size:20px;font-weight:800;line-height:1.1}
+.logo-sub{font-size:11px;color:#6b7280}
+.stats{display:flex;gap:6px;flex-wrap:wrap}
+.stat{padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.stat-hp{background:#fef2f2;color:#ef4444}
+.stat-lv{background:#eef1ff;color:#5b6cff}
+.stat-coin{background:#fffbeb;color:#f59e0b}
+
+/* 总进度 */
+.overview{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.ov-card{padding:14px;text-align:center}
+.ov-card h2{font-size:24px;color:#5b6cff;margin-bottom:2px}
+.ov-card p{font-size:12px;color:#6b7280}
+
+/* 复习地下城 */
+.review-card{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;margin-bottom:14px;background:linear-gradient(135deg,#eef2ff,#f0fdfa);border:1px solid #dde5ff}
+.review-card h3{font-size:15px;margin-bottom:3px}
+.review-card p{font-size:12px;color:#6b7280}
+.btn{padding:9px 15px;border-radius:10px;font-size:13px;font-weight:700;border:none;transition:.15s}
+.btn-primary{background:#5b6cff;color:#fff}
+.btn-primary:hover{background:#4653d4}
+.btn-plain{background:#eef1ff;color:#5b6cff}
+.btn-warm{background:#fffbeb;color:#d97706}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* 单元 */
+.unit{margin-bottom:10px;overflow:hidden}
+.unit-head{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;cursor:pointer;user-select:none}
+.unit-name{display:flex;align-items:center;gap:10px;font-weight:700}
+.unit-num{width:28px;height:28px;border-radius:8px;background:#5b6cff;color:#fff;display:grid;place-items:center;font-size:13px}
+.unit-meta{font-size:12px;color:#6b7280;font-weight:400;margin-top:2px}
+.arrow{transition:.2s;color:#9ca3af}
+.arrow.open{transform:rotate(180deg)}
+.level-list{padding:0 10px 10px}
+.level-row{display:grid;grid-template-columns:60px 1fr auto;align-items:center;gap:10px;padding:10px 8px;border-radius:12px;margin-bottom:5px;background:#f8faff;border:1px solid #eef1f6}
+.level-id{text-align:center;font-weight:800;color:#5b6cff;font-size:15px}
+.level-info h4{font-size:14px}
+.level-info p{font-size:11px;color:#6b7280;margin-top:2px}
+.stars{color:#f59e0b;letter-spacing:2px}
+.actions{display:flex;gap:6px}
+.actions .btn{padding:7px 11px;font-size:12px}
+.lock-txt{font-size:12px;color:#9ca3af;text-align:right;white-space:nowrap}
+
+/* 游戏页 */
+.view{display:none}
+.view.active{display:block}
+.back-bar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.back-btn{width:38px;height:38px;border-radius:10px;background:#fff;border:1px solid #e5e7eb;font-size:16px}
+.mode-tag{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#eef1ff;color:#5b6cff}
+.mode-tag.review{background:#f0fdfa;color:#059669}
+.mode-tag.test{background:#fffbeb;color:#d97706}
+.progress-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.progress-track{flex:1;height:8px;background:#eef1f6;border-radius:999px;overflow:hidden}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#6c7bff,#4653d4);transition:.3s}
+.qcount{font-size:13px;font-weight:700;color:#6b7280;min-width:42px;text-align:right}
+.enemy{text-align:center;padding:16px;border-radius:14px;background:linear-gradient(160deg,#fff5f5,#ffe9ec);border:2px dashed #ffc4cf;margin-bottom:6px}
+.enemy-label{font-size:12px;color:#c95c70;font-weight:700}
+.enemy-word{font-size:30px;font-weight:800;color:#b0304a;margin-top:4px}
+.audio-row{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.audio-btn{padding:5px 12px;border-radius:999px;background:#fff;border:1px solid #e5e7eb;font-size:12px;font-weight:700;color:#5b6cff;transition:.15s}
+.audio-btn:hover{border-color:#6c7bff;background:#f3f5ff}
+.audio-btn.playing{background:#eef1ff;border-color:#6c7bff;color:#4653d4}
+.audio-btn:disabled{opacity:.6;cursor:wait}
+.phonetic{font-size:14px;color:#6b7280;font-weight:600;letter-spacing:.5px}
+.audio-status{font-size:11px;color:#9ca3af}
+.question-title{text-align:center;font-size:14px;color:#6b7280;margin:8px 0 12px}
+.options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.option{padding:16px 12px;border-radius:14px;background:#fff;border:2px solid #e8ecff;font-size:18px;font-weight:700;transition:.15s}
+.option:hover:not(:disabled){border-color:#6c7bff;background:#f3f5ff}
+.option.correct{border-color:#22c55e;background:#ecfdf5;color:#15803d}
+.option.wrong{border-color:#ef4444;background:#fef2f2;color:#b91c1c}
+.option:disabled{cursor:default}
+.opt-defs{margin-top:10px;flex-direction:column;gap:4px}
+.opt-def-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;background:#f8faff;border-radius:8px;padding:6px 10px;color:#374151}
+.opt-def-row .od-word{flex:1;min-width:0}
+.opt-def-row .od-zh{opacity:.9}
+.opt-def-row .audio-btn{flex:none}
+.opt-def-row.correct{background:#ecfdf5;color:#15803d}
+.opt-def-row.wrongpick{background:#fef2f2;color:#b91c1c}
+.feedback{text-align:center;font-size:15px;font-weight:700;min-height:22px;margin-top:12px}
+.feedback.good{color:#16a34a}
+.feedback.bad{color:#dc2626}
+.combo{text-align:center;font-size:13px;color:#7c3aed;font-weight:700;min-height:18px;margin-top:4px}
+.hp-row{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.hp-hearts{font-size:18px;letter-spacing:3px}
+.game-hint{font-size:12px;color:#9ca3af}
+.next-btn{width:100%;margin-top:12px;padding:13px;font-size:15px;border-radius:12px;background:#6c7bff;color:#fff;font-weight:800}
+
+/* 结算 */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.overlay.show{display:flex}
+.result-box{background:#fff;border-radius:20px;padding:26px 22px;max-width:380px;width:100%;text-align:center}
+.result-box .big{font-size:48px}
+.result-box h2{margin:8px 0 4px;font-size:22px}
+.result-box .sub{color:#6b7280;font-size:13px;margin-bottom:14px}
+.reward{display:flex;gap:10px;justify-content:center;margin:10px 0 16px}
+.reward div{background:#f8faff;border-radius:12px;padding:10px 16px;font-weight:700;font-size:13px}
+.reward .e{color:#5b6cff}
+.reward .c{color:#d97706}
+.result-btns{display:flex;gap:8px;justify-content:center}
+.result-btns .btn{padding:11px 22px;font-size:14px}
+.wrong-recap{margin-top:12px;text-align:left}
+.wrong-recap h4{font-size:13px;color:#6b7280;margin-bottom:6px}
+.wrong-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:#fef2f2;color:#b91c1c;border-radius:10px;font-size:13px;margin-bottom:5px}
+.todo-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:#f8faff;color:#374151;border-radius:10px;font-size:13px;margin-bottom:5px}
+.ov-group{font-size:12px;color:#6b7280;font-weight:700;margin:8px 0 5px}
+.wrong-item .audio-btn,.todo-item .audio-btn{padding:3px 9px;font-size:11px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:#111827;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.foot-tip{text-align:center;color:#9ca3af;font-size:11px;margin-top:14px}
+@media(max-width:600px){
+  .overview{grid-template-columns:1fr 1fr}
+  .level-row{grid-template-columns:52px 1fr}
+  .actions{grid-column:1/-1;justify-content:flex-start}
+  .options{grid-template-columns:1fr}
+  .stats{margin-top:8px;width:100%}
+  header{flex-wrap:wrap}
+}
+/* 顺序/乱序模式切换 */
+.mode-switch{display:flex;gap:6px;background:#eceef5;border-radius:14px;padding:4px;margin:0 4px 10px}
+.mode-tab{flex:1;padding:11px 0;border:none;border-radius:11px;background:transparent;font-family:inherit;font-size:14px;font-weight:800;color:#6b7280;cursor:pointer;transition:.18s}
+.mode-tab.active{background:#fff;color:#5b6cff;box-shadow:0 2px 8px rgba(31,36,48,.08)}
+body.shuf .mode-tag{background:#f3e8ff;color:#7c3aed}
+body.shuf .unit-num{background:#f3e8ff;color:#7c3aed}
+body.shuf .level-id{color:#7c3aed}
+body.shuf .stars{color:#7c3aed}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 首页 ============ -->
+  <div class="view active" id="homeView">
+    <header class="card">
+      <div class="brand">
+        <div class="logo-box">VQ</div>
+        <div>
+          <div class="logo-text">Vocab Quest<span style="font-size:12px;background:#eef1ff;color:#5b6cff;padding:2px 6px;border-radius:6px;margin-left:6px" id="stageTag">CET-4</span></div>
+          <div class="logo-sub" id="logoSub">英语四级核心词闯关</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat stat-hp">♥ <span id="hpText">3</span></div>
+        <div class="stat stat-lv">Lv.<span id="lvText">7</span></div>
+        <div class="stat stat-coin">● <span id="coinText">1280</span></div>
+      </div>
+    </header>
+
+    <div class="overview">
+      <div class="card ov-card"><h2 id="ovTotal">36</h2><p>关卡总数</p></div>
+      <div class="card ov-card"><h2 id="ovPassed">0/36</h2><p>已通关</p></div>
+      <div class="card ov-card"><h2 id="ovMastered">0/0</h2><p>长期掌握 / 全库</p></div>
+    </div>
+
+    <div class="card review-card">
+      <div>
+        <h3 id="reviewTitle">复习地下城 · 今日待完成</h3>
+        <p id="reviewDesc">复习今日到期的单词，不消耗体力</p>
+      </div>
+      <button class="btn btn-primary" id="reviewBtn">进入复习</button>
+    </div>
+
+    <div class="mode-switch">
+      <button class="mode-tab active" id="tabSeq">📖 顺序闯关</button>
+      <button class="mode-tab" id="tabShuf">🎲 乱序闯关</button>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 4px 8px">
+      <h3 style="font-size:16px">关卡地图</h3>
+      <span style="font-size:11px;color:#9ca3af">点击单元展开 · 通关后可复习/测试</span>
+    </div>
+    <div id="unitContainer"></div>
+    <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词</div>
+    <div style="text-align:center;margin-top:10px"><a href="index.html" style="color:#5b6cff;font-weight:700;font-size:13px;text-decoration:none">← 返回词库中心首页</a></div>
+    <div style="text-align:center;margin-top:6px;display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-ghost" id="expBtn">导出存档</button>
+      <button class="btn btn-ghost" id="impBtn">导入存档</button>
+    </div>
+    <div class="foot-tip" id="dataMeta" style="margin-top:6px"></div>
+  </div>
+
+  <!-- ============ 游戏页 ============ -->
+  <div class="view" id="gameView">
+    <div class="back-bar">
+      <button class="back-btn" id="backHome">←</button>
+      <span class="mode-tag" id="modeTag">闯关</span>
+      <span style="font-size:13px;color:#6b7280;font-weight:700" id="levelTitle">第1单元 LV1</span>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="progress-row">
+        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+        <div class="qcount" id="qcount">0/10</div>
+      </div>
+      <div class="enemy">
+        <div class="enemy-label" id="enemyLabel">👾 怪物来袭！</div>
+        <div class="enemy-word" id="cnWord">—</div>
+        <div class="audio-row" id="audioRow" style="display:none">
+          <button class="audio-btn" id="playBtn">🔊 播放发音</button>
+          <span class="phonetic" id="phonetic"></span>
+          <span class="audio-status" id="audioStatus"></span>
+        </div>
+      </div>
+      <div class="question-title" id="qTitle">点击下方选项击败它</div>
+      <div class="options" id="optionsBox"></div>
+      <div class="opt-defs" id="optDefs" style="display:none"></div>
+      <div class="feedback" id="feedback"></div>
+      <div class="combo" id="combo"></div>
+      <div class="hp-row">
+        <div class="hp-hearts" id="hpHearts">♥ ♥ ♥</div>
+        <div class="game-hint" id="gameHint">答对 8 题通关，答错扣 1 体力</div>
+      </div>
+      <button class="next-btn" id="nextBtn" style="display:none">下一题 →</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- 结算弹层 -->
+<div class="overlay" id="overlay">
+  <div class="result-box">
+    <div class="big" id="resBig">🎉</div>
+    <h2 id="resTitle">关卡通关！</h2>
+    <div class="sub" id="resSub">正确 9/10 题</div>
+    <div class="reward">
+      <div class="e">⭐ EXP +<span id="resExp">0</span></div>
+      <div class="c">● Coin +<span id="resCoin">0</span></div>
+    </div>
+    <div class="wrong-recap" id="wordOverview" style="display:none">
+      <h4>本关单词总览</h4>
+      <div id="ovWrongList"></div>
+      <div id="ovTodoList"></div>
+    </div>
+    <div class="result-btns">
+      <button class="btn btn-primary" id="resHome">返回地图</button>
+      <button class="btn btn-ghost" id="resAgain">再来一关</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="vocab_cz.js"></script>
+<script src="vocab_gz.js"></script>
+<script src="vocab.js"></script>
+<script src="vocab_c6.js"></script>
+<script src="grammar.js"></script>
+<script src="engine.js"></script>
+<script>
+/* ================= 阶段配置 ================= */
+const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
+const CATS={
+  cz:{name:"初中英语",key:"vocabQuest_cz",grammar:GRAMMAR.cz,spellK:[4,4,3],grammarN:[0,1,2]},
+  gz:{name:"高中英语",key:"vocabQuest_gz",grammar:GRAMMAR.gz,spellK:[4,3,3],grammarN:[1,2,2]},
+  cet4:{name:"英语四级",key:"vocabQuestV2",grammar:GRAMMAR.cet4,spellK:[4,3,2],grammarN:[1,2,3]},
+  c6:{name:"英语六级",key:"vocabQuest_c6",grammar:GRAMMAR.c6,spellK:[3,2,2],grammarN:[1,2,3]}
+};
+const CAT=(function(){const p=(new URLSearchParams(location.search).get("cat")||"cet4").toLowerCase();return CATS[p]?p:"cet4";})();
+const CFG=CATS[CAT];
+const DATA=VOCAB_ALIASES[CAT];
+
+/* ================= 词库结构（DATA 由所选阶段词库提供） ================= */
+const LEVEL_SIZE=12;
+const UNITS=DATA.map((v,i)=>({id:i+1,name:v.name,en:v.en,levels:Math.ceil(v.words.length/LEVEL_SIZE)}));
+const POOLS={},LPOOLS={};
+UNITS.forEach(u=>{
+  const words=DATA[u.id-1].words;
+  POOLS[u.id]=words;LPOOLS[u.id]=[];
+  for(let l=0;l<u.levels;l++)LPOOLS[u.id].push(words.slice(l*LEVEL_SIZE,(l+1)*LEVEL_SIZE));
+});
+const WORD_TOTAL=UNITS.reduce((n,u)=>n+POOLS[u.id].length,0);
+const LEVEL_TOTAL=UNITS.reduce((n,u)=>n+u.levels,0);
+const LEVELS_BEFORE={};let __acc=0;UNITS.forEach(u=>{LEVELS_BEFORE[u.id]=__acc;__acc+=u.levels;});
+
+/* 乱序题库：整库固定种子打乱后按相同关卡结构切分（每次打开切分一致，进度可累积） */
+const BANK=DATA.flatMap(v=>v.words);
+function seededShuffle(arr,seed){
+  const a=arr.slice();let s=seed;
+  const rnd=()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+  for(let i=a.length-1;i>0;i--){const j=rnd()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+const SHUF_SEED=(function(){let s=0;for(let i=0;i<CAT.length;i++)s=(s*31+CAT.charCodeAt(i))|0;return s^0x9E3779B9;})();
+const SHUF_ALL=seededShuffle(BANK,SHUF_SEED);
+const RPOOLS={},RLPOOLS={};
+UNITS.forEach(u=>{
+  RPOOLS[u.id]=SHUF_ALL;
+  RLPOOLS[u.id]=[];
+  let k=0;
+  for(let l=0;l<u.levels;l++){RLPOOLS[u.id].push(SHUF_ALL.slice(k,k+LEVEL_SIZE));k+=LEVEL_SIZE;}
+});
+
+/* ================= 存档（各阶段独立存档键） ================= */
+/* 模型 / 星级 / 掌握判定 / 错词调度 / 出题 全部在 engine.js（有单元测试） */
+const VQ=VQEngine;
+const KEY=CFG.key;
+const CTX={units:UNITS.map(u=>({id:u.id,levels:u.levels})),bank:BANK.map(w=>w[0])};
+let LEGACY_MIGRATED=false;
+let S=load();
+function load(){
+  let raw=null;
+  try{const rawStr=localStorage.getItem(KEY);if(rawStr)raw=JSON.parse(rawStr);}catch(e){}
+  if(raw&&!raw.words&&((raw.masteredWords&&raw.masteredWords.length)||(raw.rescue&&raw.rescue.length)))LEGACY_MIGRATED=true;
+  return VQ.normalizeState(raw,{units:CTX.units,bank:CTX.bank,today:VQ.dayKey(new Date())});
+}
+function save(){
+  const c={...S};Object.keys(c).forEach(k=>{if(k.indexOf("open_")===0)delete c[k];});
+  try{localStorage.setItem(KEY,JSON.stringify(c));}
+  catch(e){toast("存档写入失败，请先导出备份");}
+}
+$("expBtn").onclick=()=>{
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="vocabquest_save_"+todayStr()+".json";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast("存档已导出到浏览器下载目录");
+};
+$("impBtn").onclick=()=>{
+  const inp=document.createElement("input");inp.type="file";inp.accept=".json,application/json";
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const d=JSON.parse(r.result);
+        if(!d||typeof d!=="object"||!d.passed)throw new Error("bad");
+        S=VQ.normalizeState(d,{units:CTX.units,bank:CTX.bank,today:VQ.dayKey(new Date())});
+        save();renderHome();toast("存档已导入");
+      }catch(e){toast("存档文件无效，导入失败");}
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+};
+
+/* ================= 工具 ================= */
+function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[b[i],b[j]]=[b[j],b[i]];}return b;}
+function $(id){return document.getElementById(id);}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
+function todayStr(){return VQ.dayKey(new Date());}
+function renderHearts(){$("hpHearts").textContent=G&&G.mode==="play"?Array(3).fill(0).map((_,i)=>i<G.hp?"♥":"♡").join(" "):"—";}
+
+/* ================= 发音 ================= */
+let audioEl=null,audioToken=0;
+const audioCache=new Map();
+function getAudio(en){
+  if(audioCache.has(en))return audioCache.get(en);
+  const a=new Audio("https://dict.youdao.com/dictvoice?audio="+encodeURIComponent(en)+"&type=2");
+  a.preload="auto";
+  if(audioCache.size>=30){const k=audioCache.keys().next().value;audioCache.delete(k);}
+  audioCache.set(en,a);
+  return a;
+}
+function preloadWord(en){try{if(en)getAudio(en);}catch(e){}}
+function playWord(en){
+  const my=++audioToken;
+  const setState=(label,status,playing)=>{
+    if(my!==audioToken)return;
+    const btn=$("playBtn");
+    if(btn){btn.textContent=label;btn.classList.toggle("playing",playing);btn.disabled=playing;}
+    $("audioStatus").textContent=status;
+  };
+  if(!en){setState("🔊 播放发音","该词暂无发音",false);return;}
+  setState("⏳ 播放中…","播放中…",true);
+  const finish=ok=>{
+    if(my!==audioToken)return;
+    setState(ok?"🔊 重新播放":"🔊 重试",ok?"":"发音加载失败，请检查网络或重试",false);
+  };
+  const fallback=()=>{
+    if(my!==audioToken)return;
+    try{
+      if(!("speechSynthesis" in window)){finish(false);return;}
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(en);
+      u.lang="en-US";u.rate=0.85;
+      u.onend=()=>finish(true);
+      u.onerror=()=>finish(false);
+      speechSynthesis.speak(u);
+    }catch(e){finish(false);}
+  };
+  try{
+    const a=getAudio(en);
+    if(audioEl&&audioEl!==a)audioEl.pause();
+    audioEl=a;
+    let usedFallback=false;
+    a.onended=()=>{if(!usedFallback)finish(true);};
+    a.onerror=()=>{usedFallback=true;fallback();};
+    try{a.currentTime=0;}catch(e){}
+    const p=a.play();
+    if(p)p.catch(()=>{usedFallback=true;fallback();});
+    setTimeout(()=>{if(my===audioToken&&!usedFallback&&audioEl===a&&!a.paused&&a.currentTime===0)fallback();},6000);
+  }catch(e){fallback();}
+}
+function showAudio(en,ph){
+  $("audioRow").style.display="flex";
+  $("phonetic").textContent=ph?"/"+ph+"/":"";
+  $("playBtn").textContent="🔊 播放发音";
+  $("playBtn").disabled=false;$("playBtn").classList.remove("playing");
+  $("audioStatus").textContent="";
+  $("playBtn").onclick=()=>playWord(en);
+}
+function hideAudio(){$("audioRow").style.display="none";}
+
+/* ================= 模式辅助 ================= */
+function passMap(){return S.shufMode?S.passedS:S.passed;}
+function countAll(map){let n=0;UNITS.forEach(u=>{for(let l=1;l<=u.levels;l++)if(map[u.id][l]>0)n++;});return n;}
+function unitName(u){return S.shufMode?("🎲 乱序 "+u.id):u.name;}
+function unitMeta(u){return S.shufMode?("随机组合 · 单词不按字母排序"):u.en;}
+
+/* ================= 首页渲染 ================= */
+function renderHome(){
+  const c=VQ.counts(S);
+  const due=VQ.dueList(S,todayStr(),99);
+  $("ovTotal").textContent=LEVEL_TOTAL;
+  $("ovPassed").textContent=countAll(passMap())+"/"+LEVEL_TOTAL;
+  $("ovMastered").textContent=c.mastered+"/"+WORD_TOTAL;
+  $("hpText").textContent=S.hp;
+  $("lvText").textContent=S.lv;
+  $("coinText").textContent=S.coin;
+  $("dataMeta").textContent="长期掌握 "+c.mastered+" · 学习中 "+c.learning+" · 错词区 "+c.rescue+" · 本地事件 "+S.events.length+" 条";
+  $("tabSeq").classList.toggle("active",!S.shufMode);
+  $("tabShuf").classList.toggle("active",S.shufMode);
+  document.body.classList.toggle("shuf",S.shufMode);
+
+  if(S.lastReviewDate===todayStr()){
+    $("reviewTitle").textContent="复习队列 · 今日已完成";
+    $("reviewDesc").textContent="今天复习了 "+S.reviewed+" 个词，明天还有新的到期词";
+    $("reviewBtn").textContent="已完成";
+    $("reviewBtn").disabled=true;
+  }else if(!due.length){
+    $("reviewTitle").textContent="复习队列 · 暂无到期";
+    $("reviewDesc").textContent="今天没有到期词，去闯关学新词吧";
+    $("reviewBtn").disabled=true;
+    $("reviewBtn").textContent="暂无到期";
+  }else{
+    $("reviewTitle").textContent="复习队列 · 到期 "+due.length+" 词";
+    $("reviewDesc").textContent="其中错词 "+due.filter(x=>x.rescue).length+" 个 · 不消耗体力";
+    $("reviewBtn").disabled=false;
+    $("reviewBtn").textContent="开始复习";
+  }
+
+  const box=$("unitContainer");box.innerHTML="";
+  UNITS.forEach(u=>box.appendChild(renderUnit(u)));
+  if(LEGACY_MIGRATED){
+    LEGACY_MIGRATED=false;
+    setTimeout(()=>toast("已按新标准重算掌握度：答对一次不再算掌握"),500);
+  }
+}
+function unitOpened(id){return !!S["open_"+id];}
+function isUnitOpen(u){if(u===1)return true;return countAll(passMap())>=LEVELS_BEFORE[u];}
+function isLevelOpen(u,l){if(!isUnitOpen(u))return false;if(l===1)return true;return passMap()[u][l-1]>0;}
+function renderUnit(u){
+  const el=document.createElement("div");el.className="card unit";
+  const open=unitOpened(u.id);
+  const done=countPassed(u.id);
+  el.innerHTML=`<div class="unit-head" data-u="${u.id}">
+    <div class="unit-name">
+      <div class="unit-num">${u.id}</div>
+      <div><div>${isUnitOpen(u.id)?unitName(u):'🔒 '+unitName(u)}</div><div class="unit-meta">${unitMeta(u)} · ${done}/${u.levels} 关</div></div>
+    </div>
+    <div class="arrow ${open?'open':''}">▼</div>
+  </div>`;
+  const head=el.querySelector(".unit-head");
+  head.onclick=()=>{S["open_"+u.id]=!unitOpened(u.id);save();renderHome();};
+  if(open&&isUnitOpen(u.id)){
+    const list=document.createElement("div");list.className="level-list";
+    for(let l=1;l<=u.levels;l++)list.appendChild(renderLevel(u.id,l));
+    el.appendChild(list);
+  }
+  return el;
+}
+function countPassed(u){let n=0;const U=UNITS[u-1],map=passMap();for(let l=1;l<=U.levels;l++)if(map[u][l]>0)n++;return n;}
+function renderLevel(u,l){
+  const row=document.createElement("div");row.className="level-row";
+  const stars=passMap()[u][l];
+  const open=isLevelOpen(u,l);
+  let starHtml=stars?`<span class="stars">${"★".repeat(stars)}${"☆".repeat(3-stars)}</span>`:"";
+  row.innerHTML=`<div class="level-id">LV${l}</div>
+    <div class="level-info">
+      <h4>${S.shufMode?`乱序 ${u} 段 · 第 ${l} 关`:`第 ${u} 单元 · 第 ${l} 关`}</h4>
+      <p>${open?(stars?`已通关 ${starHtml}`:"可闯关"):"完成上一关后解锁"}</p>
+    </div>
+    <div class="actions"></div>`;
+  const acts=row.querySelector(".actions");
+  if(!open){acts.innerHTML=`<span class="lock-txt">🔒 未解锁</span>`;return row;}
+  acts.appendChild(btn("闯关","btn-primary",()=>start(u,l,"play")));
+  if(stars>0){
+    acts.appendChild(btn("复习","btn-plain",()=>start(u,l,"review")));
+    acts.appendChild(btn("测试","btn-warm",()=>start(u,l,"test")));
+  }
+  return row;
+}
+function btn(txt,cls,fn){const b=document.createElement("button");b.className="btn "+cls;b.textContent=txt;b.onclick=e=>{e.stopPropagation();fn();};return b;}
+
+/* ================= 游戏流程 ================= */
+let G=null;
+function show(view){document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));$(view).classList.add("active");}
+function start(u,l,mode){
+  if(G&&G.finishTimer)clearTimeout(G.finishTimer);
+  const lpSet=S.shufMode?RLPOOLS:LPOOLS;
+  const pool=S.shufMode?(RPOOLS[u]||BANK):(POOLS[u]||POOLS[1]);
+  const lp=(lpSet[u]&&lpSet[u][l-1])||pool.slice(0,LEVEL_SIZE);
+  const gN=mode==="review"?0:CFG.grammarN[l<=2?0:(l<=8?1:2)];
+  const spellEvery=mode==="review"?3:CFG.spellK[l<=3?0:(l<=8?1:2)];
+  const sess=VQ.buildSession({
+    words:shuffle(lp.slice()),          // 本关全部 12 词，每词必考一次
+    grammar:mode==="review"?[]:(CFG.grammar||[]),
+    grammarN:gN, spellEvery:spellEvery, mode:mode, pool:pool
+  });
+  G={
+    u,l,mode,shuf:S.shufMode&&mode!=="review",daily:false,
+    qs:sess.questions,passNeed:sess.passNeed,
+    idx:0,correct:0,wrong:0,
+    hp:mode==="play"?3:999,
+    finished:false,answered:false,qStart:Date.now(),
+    combo:0,correctWords:[],
+    wrongList:[]
+  };
+  $("modeTag").textContent=mode==="play"?(S.shufMode?"🎲 乱序闯关":"📖 顺序闯关"):mode==="review"?"复习模式":(S.shufMode?"🎲 乱序测试":"测试模式");
+  $("modeTag").className="mode-tag"+(mode==="play"?"":" "+mode);
+  $("levelTitle").textContent=S.shufMode?`乱序第${u}段 LV${l}`:`第${u}单元 LV${l}`;
+  $("gameHint").textContent=mode==="play"?`本关 ${sess.total} 题 · 答对 ${sess.passNeed} 题通关 · 全对得 3 星`
+    :mode==="review"?"巩固本关全部单词，不计星、不扣体力":"完整考核，错题进入错词区";
+  show("gameView");
+  renderQ();
+}
+function renderQ(){
+  const q=G.qs[G.idx];
+  if(!q){finish(G.correct>=G.passNeed);return;}
+  const T=G.qs.length;
+  G.qStart=Date.now();
+  $("cnWord").textContent=q.prompt;
+  $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战":(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词");
+  $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项":(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词");
+  $("qcount").textContent=(G.idx+1)+"/"+T;
+  $("progFill").style.width=(G.idx/T*100)+"%";
+  $("feedback").textContent="";$("feedback").className="feedback";
+  $("combo").textContent=G.combo>=2?`🔥 连对 ${G.combo}！`:"";
+  renderHearts();
+  if(q.type==="spell")showAudio(q.en,q.ph);else hideAudio();
+  preloadWord(q.en);
+  if(q.optDefs)q.optDefs.forEach(d=>preloadWord(d.en));
+  const od=$("optDefs");od.style.display="none";od.innerHTML="";
+  $("nextBtn").style.display="none";G.answered=false;
+
+  const box=$("optionsBox");box.innerHTML="";
+  if(q.type==="match"||q.type==="grammar"){
+    q.options.forEach(opt=>{
+      const b=document.createElement("button");b.className="option";b.textContent=opt;
+      b.onclick=()=>pickMatch(b,opt);box.appendChild(b);
+    });
+  }else{
+    const wrap=document.createElement("div");
+    wrap.style.cssText="display:flex;gap:8px;margin-top:4px";
+    const inp=document.createElement("input");
+    inp.id="spellInput";inp.type="text";inp.autocomplete="off";inp.spellcheck=false;
+    inp.placeholder="输入完整单词";
+    inp.style.cssText="flex:1;min-width:0;padding:13px 14px;border-radius:12px;border:2px solid #e8ecff;font-size:16px;font-weight:700;text-align:center;outline:none;font-family:inherit";
+    inp.onkeydown=e=>{if(e.key==="Enter")pickSpell(inp.value.trim().toLowerCase());};
+    wrap.appendChild(inp);
+    wrap.appendChild(btn("提交","btn-primary",()=>pickSpell(inp.value.trim().toLowerCase())));
+    box.appendChild(wrap);
+    setTimeout(()=>{if($("spellInput")&&!$("spellInput").disabled)$("spellInput").focus();},60);
+  }
+}
+function renderOptDefs(defs,answer,picked){
+  const box=$("optDefs");
+  box.style.display="flex";
+  box.innerHTML=defs.map(d=>{
+    let cls="opt-def-row";
+    if(d.en===answer)cls+=" correct";
+    else if(picked&&d.en===picked)cls+=" wrongpick";
+    const ph=d.ph?` <span class="phonetic">/${d.ph}/</span>`:"";
+    return `<div class="${cls}"><span class="od-word">${d.en}${ph}</span><span class="od-zh">${d.zh}</span><button class="audio-btn" data-w="${d.en}">🔊</button></div>`;
+  }).join("");
+  [...box.querySelectorAll(".audio-btn")].forEach(b=>b.onclick=()=>playWord(b.getAttribute("data-w")));
+}
+function pickMatch(btn,val){
+  if(G.answered||G.finished)return;G.answered=true;
+  const q=G.qs[G.idx];const buttons=document.querySelectorAll("#optionsBox .option");
+  buttons.forEach(b=>b.disabled=true);
+  if(val===q.answer){
+    btn.classList.add("correct");G.correct++;G.combo++;if(q.en)G.correctWords.push(q.en);
+    $("feedback").textContent="✔ 正确！";$("feedback").className="feedback good";
+  }else{
+    btn.classList.add("wrong");
+    buttons.forEach(b=>{if(b.textContent===q.answer)b.classList.add("correct");});
+    onWrong(q.answer);
+  }
+  if(q.tip)$("feedback").textContent+="　📌 "+q.tip;
+  if(q.optDefs)renderOptDefs(q.optDefs,q.answer,val);
+  showAudio(q.en,q.ph);
+  if(val===q.answer)playWord(q.en);
+  recordWordResult(q,val===q.answer,val);
+  afterAnswer();
+}
+function pickSpell(val){
+  if(G.answered||G.finished)return;
+  const q=G.qs[G.idx];const inp=$("spellInput");
+  G.answered=true;
+  const ok=!!val&&val===q.answer;
+  if(inp){inp.disabled=true;inp.style.borderColor=ok?"#22c55e":"#ef4444";}
+  if(ok){
+    G.correct++;G.combo++;G.correctWords.push(q.en);
+    $("feedback").textContent="✔ 拼写正确！";$("feedback").className="feedback good";
+    showAudio(q.en,q.ph);playWord(q.en);
+  }else{
+    onWrong(q.answer);
+  }
+  $("optDefs").style.display="flex";
+  const sph=q.ph?` <span class="phonetic">/${q.ph}/</span>`:"";
+  $("optDefs").innerHTML=`<div class="opt-def-row ${ok?"correct":"wrongpick"}"><span class="od-word">${q.en}${sph}</span><span class="od-zh">${q.zh}</span><button class="audio-btn" data-w="${q.en}">🔊</button></div>`;
+  $("optDefs").querySelector(".audio-btn").onclick=()=>playWord(q.en);
+  recordWordResult(q,ok,val);
+  afterAnswer();
+}
+/* 作答落地：更新记忆状态 + 写事件日志（语法题不进记忆状态） */
+function recordWordResult(q,ok,picked){
+  const rt=Math.max(0,Date.now()-(G.qStart||Date.now()));
+  if(q.type!=="grammar"&&q.en){
+    VQ.recordAnswer(S,{word:q.en,type:q.type,correct:ok,today:todayStr()});
+  }
+  VQ.appendEvent(S,{
+    ts:Date.now(),u:G.u,l:G.l,mode:G.mode,shuf:G.shuf?1:0,
+    type:q.type,word:q.en||"",correct:ok?1:0,rt:rt,pick:picked||""
+  });
+  save();
+}
+function onWrong(answer){
+  G.wrong++;G.combo=0;
+  if(G.mode==="play")G.hp--;
+  $("feedback").textContent="✘ 正确答案："+answer;$("feedback").className="feedback bad";
+  G.wrongList.push({zh:(G.qs[G.idx].zh||G.qs[G.idx].tip||"语法题"),ans:answer,ph:(G.qs[G.idx].ph||"")});
+}
+function afterAnswer(){
+  renderHearts();
+  $("progFill").style.width=((G.idx+1)/G.qs.length*100)+"%";
+  if(G.mode==="play"&&G.hp<=0){G.finishTimer=setTimeout(()=>finish(false),700);return;}
+  $("nextBtn").style.display="block";
+}
+$("nextBtn").onclick=()=>{
+  if(!G||G.finished)return;
+  G.idx++;
+  if(G.idx>=G.qs.length)finish(G.correct>=G.passNeed);
+  else renderQ();
+};
+
+function finish(win){
+  if(G.finished)return;G.finished=true;
+  const total=G.qs.length;
+  const stars=win?VQ.starsFor(G.correct,total):0;
+  const exp=win?G.correct*15:0;const coin=win?G.correct*6:0;
+  if(win){
+    if(G.mode!=="review"&&G.l>0){
+      const map=G.shuf?S.passedS:S.passed;
+      if(map[G.u][G.l]<stars)map[G.u][G.l]=stars;
+      if(G.shuf)S.passedCountS=countAll(S.passedS);
+      else S.passedCount=countAll(S.passed);
+    }
+    S.exp+=exp;S.coin+=coin;
+  }
+  if(G.mode==="review"&&G.daily){
+    S.lastReviewDate=todayStr();
+    if(win)S.reviewed=(S.reviewed||0)+G.correct;
+  }
+  VQ.appendEvent(S,{ts:Date.now(),type:"session_end",mode:G.mode,u:G.u,l:G.l,correct:G.correct,total:total,stars:stars,win:win?1:0});
+  save();
+  $("resBig").textContent=win?"🎉":(G.hp<=0?"💔":"😢");
+  $("resTitle").textContent=win?(G.mode==="review"?"复习完成！":"关卡通关！"):(G.hp<=0?"体力耗尽":"再试一次吧");
+  $("resSub").textContent=`正确 ${G.correct}/${total} 题`+(win?`，获得 ${stars} 星`:`，需答对 ${G.passNeed} 题通关`);
+  $("resExp").textContent=exp;$("resCoin").textContent=coin;
+  const ov=$("wordOverview");
+  const wrong=G.wrongList;
+  const answered=new Set([...G.correctWords,...wrong.map(w=>w.ans)]);
+  const todo=G.qs.filter(q=>!answered.has(q.en)).map(q=>({zh:q.zh,ans:q.en,ph:q.ph||""}));
+  const itemHtml=(w,cls)=>`<div class="${cls}"><span>${w.zh} → ${w.ans}${w.ph?` <span class="phonetic">/${w.ph}/</span>`:""}</span><button class="audio-btn" data-w="${w.ans}">🔊</button></div>`;
+  if(wrong.length||todo.length){
+    ov.style.display="block";
+    $("ovWrongList").innerHTML=wrong.length?`<div class="ov-group">答错 ${wrong.length} 词</div>`+wrong.map(w=>itemHtml(w,"wrong-item")).join(""):"";
+    $("ovTodoList").innerHTML=todo.length?`<div class="ov-group">未作答 ${todo.length} 词</div>`+todo.map(w=>itemHtml(w,"todo-item")).join(""):"";
+    [...document.querySelectorAll("#ovWrongList .audio-btn,#ovTodoList .audio-btn")].forEach(b=>b.onclick=()=>playWord(b.getAttribute("data-w")));
+  }else ov.style.display="none";
+  $("overlay").classList.add("show");
+}
+
+/* ================= 导航 ================= */
+function goHome(){if(G&&G.finishTimer)clearTimeout(G.finishTimer);$("overlay").classList.remove("show");show("homeView");renderHome();}
+$("backHome").onclick=()=>{
+  if(G&&!G.finished&&!confirm("退出将丢失本局进度，确定退出？"))return;
+  goHome();
+};
+$("resHome").onclick=goHome;
+$("resAgain").onclick=()=>{$("overlay").classList.remove("show");start(G.u,G.l,G.mode);};
+$("reviewBtn").onclick=()=>{
+  if(S.lastReviewDate===todayStr())return;
+  const due=VQ.dueList(S,todayStr(),20);
+  if(!due.length){toast("今天没有到期单词，去闯关学新词吧");return;}
+  const wordIndex={};
+  Object.keys(POOLS).forEach(u=>POOLS[u].forEach(w=>{if(!wordIndex[w[0]])wordIndex[w[0]]={w,u:+u};}));
+  const words=due.map(it=>wordIndex[it.word]).filter(Boolean).map(it=>it.w);
+  if(!words.length){toast("到期词不在当前词库中，请切换对应阶段");return;}
+  const sess=VQ.buildSession({words:shuffle(words),grammar:[],grammarN:0,spellEvery:3,mode:"review",pool:BANK});
+  G={
+    u:1,l:0,mode:"review",daily:true,shuf:false,
+    qs:sess.questions,passNeed:sess.passNeed,
+    idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
+    combo:0,correctWords:[],wrongList:[]
+  };
+  $("modeTag").textContent="复习队列";$("modeTag").className="mode-tag review";
+  $("levelTitle").textContent="今日到期 "+sess.total+" 词";
+  $("gameHint").textContent=`含错词 ${due.filter(x=>x.rescue).length} 个 · 答对 ${sess.passNeed} 题完成，不扣体力`;
+  show("gameView");renderQ();
+};
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("overlay").classList.contains("show")&&G&&G.finished)goHome();
+});
+
+/* ================= 模式切换 ================= */
+$("tabSeq").onclick=()=>{if(S.shufMode){S.shufMode=false;save();renderHome();toast("已切换到顺序闯关（按首字母排序）");}};
+$("tabShuf").onclick=()=>{if(!S.shufMode){S.shufMode=true;save();renderHome();toast("已切换到乱序闯关（单词随机组合）");}};
+
+/* ================= 阶段文案 ================= */
+document.title="Vocab Quest · "+CFG.name;
+$("stageTag").textContent={cz:"初中",gz:"高中",cet4:"CET-4",c6:"CET-6"}[CAT];
+$("logoSub").textContent=CFG.name+"词汇闯关";
+$("footTip").textContent=CFG.name+"词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词";
+
+renderHome();
+</script>
+</body>
+</html>

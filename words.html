@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>词库浏览</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh}
+.wrap{max-width:860px;width:100%;margin:0 auto;padding:0 20px}
+header{padding:34px 0 18px}
+.back{display:inline-flex;align-items:center;gap:6px;color:#5b6cff;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:16px}
+.back:hover{text-decoration:underline}
+h1{font-size:24px;font-weight:800}
+.sub{color:#6b7280;font-size:13px;margin-top:6px}
+.game-btn{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:10px 18px;border-radius:12px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 6px 16px rgba(91,108,255,.28);transition:transform .15s}
+.game-btn:hover{transform:translateY(-2px)}
+.toolbar{position:sticky;top:0;z-index:10;background:rgba(246,247,251,.92);backdrop-filter:blur(8px);padding:10px 0 14px}
+.search{width:100%;padding:12px 16px;border-radius:13px;border:2px solid #e8ecff;background:#fff;font-size:15px;outline:none;font-family:inherit;transition:border-color .15s}
+.search:focus{border-color:#5b6cff}
+.result-tip{font-size:12px;color:#8a91a5;margin-top:8px;display:none}
+.units{padding-bottom:40px}
+details.unit{background:#fff;border:1px solid #eef0f6;border-radius:16px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 8px rgba(31,36,48,.04)}
+details.unit summary{list-style:none;cursor:pointer;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;user-select:none}
+details.unit summary::-webkit-details-marker{display:none}
+.u-name{font-size:15px;font-weight:800}
+.u-count{font-size:12px;color:#8a91a5;font-weight:700}
+.u-arrow{color:#c3c8d8;font-size:13px;margin-left:8px;transition:transform .15s}
+details[open] .u-arrow{transform:rotate(90deg)}
+.u-head{display:flex;align-items:center;flex:1;gap:8px}
+.word-list{border-top:1px solid #f0f2f8}
+.w-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #f4f5fa}
+.w-row:last-child{border-bottom:none}
+.w-word{font-size:15px;font-weight:700;min-width:130px}
+.w-ph{font-size:12px;color:#8a91a5;letter-spacing:.4px}
+.w-zh{flex:1;font-size:13px;color:#4b5563;min-width:0}
+.w-btn{flex:none;padding:6px 12px;border-radius:999px;background:#f3f5ff;border:1px solid #e5e7eb;font-size:12px;font-weight:700;color:#5b6cff;cursor:pointer;transition:.15s;font-family:inherit}
+.w-btn:hover{border-color:#6c7bff;background:#eef1ff}
+.w-btn.playing{background:#eef1ff;border-color:#6c7bff;color:#4653d4}
+.hidden-row{display:none!important}
+.empty{display:none;text-align:center;padding:60px 0;color:#8a91a5;font-size:14px}
+@media(max-width:600px){
+  header{padding:24px 0 12px}
+  h1{font-size:20px}
+  .w-row{flex-wrap:wrap;padding:12px 16px;gap:6px}
+  .w-word{min-width:0;flex:1 1 auto}
+  .w-ph{order:3;width:100%}
+  .w-zh{flex:1 1 60%}
+  .w-btn{padding:5px 10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="index.html">← 返回首页</a>
+    <h1 id="pageTitle">词库</h1>
+    <div class="sub" id="pageSub"></div>
+    <a class="game-btn" id="gameBtn" href="game.html?cat=cet4" style="display:none">🎮 进入四级闯关游戏</a>
+  </header>
+  <div class="toolbar">
+    <input class="search" id="search" type="search" placeholder="搜索单词或释义…">
+    <div class="result-tip" id="resultTip"></div>
+  </div>
+  <div class="units" id="units"></div>
+  <div class="empty" id="emptyTip">没有匹配的单词，换个关键词试试</div>
+</div>
+<script src="vocab_cz.js"></script>
+<script src="vocab_gz.js"></script>
+<script src="vocab.js"></script>
+<script src="vocab_c6.js"></script>
+<script>
+const CATS={
+  cz:{data:VOCAB_CZ,name:"初中英语",desc:"中考大纲核心词汇",game:"game.html?cat=cz"},
+  gz:{data:VOCAB_GZ,name:"高中英语",desc:"高考大纲词汇",game:"game.html?cat=gz"},
+  cet4:{data:VOCAB,name:"英语四级",desc:"CET-4 大纲词汇",game:"game.html?cat=cet4"},
+  c6:{data:VOCAB_C6,name:"英语六级",desc:"CET-6 大纲核心词汇",game:"game.html?cat=c6"}
+};
+const cat=CATS[(new URLSearchParams(location.search).get("cat")||"cet4").toLowerCase()]?new URLSearchParams(location.search).get("cat").toLowerCase():"cet4";
+const CFG=CATS[cat];
+document.title=CFG.name+" · 词库";
+document.getElementById("pageTitle").textContent=CFG.name;
+document.getElementById("pageSub").textContent=CFG.desc+" · 共 "+CFG.data.reduce((s,u)=>s+u.words.length,0)+" 词";
+if(CFG.game){
+  const gb=document.getElementById("gameBtn");
+  gb.style.display="inline-flex";
+  gb.setAttribute("href",CFG.game);
+  gb.textContent="🎮 进入"+CFG.name+"闯关游戏";
+}
+
+let audioEl=null,audioToken=0;
+const audioCache=new Map();
+function getAudio(en){
+  if(audioCache.has(en))return audioCache.get(en);
+  const a=new Audio("https://dict.youdao.com/dictvoice?audio="+encodeURIComponent(en)+"&type=2");
+  a.preload="auto";
+  if(audioCache.size>=40){const k=audioCache.keys().next().value;audioCache.delete(k);}
+  audioCache.set(en,a);
+  return a;
+}
+function playWord(en,btn){
+  const my=++audioToken;
+  const reset=()=>{if(my===audioToken){btn.textContent="🔊";btn.classList.remove("playing");}};
+  btn.textContent="⏳";btn.classList.add("playing");
+  const finish=ok=>{if(my!==audioToken)return;reset();};
+  const fallback=()=>{
+    if(my!==audioToken)return;
+    try{
+      if(!("speechSynthesis" in window)){reset();return;}
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(en);
+      u.lang="en-US";u.rate=0.85;
+      u.onend=()=>finish(true);u.onerror=()=>reset();
+      speechSynthesis.speak(u);
+    }catch(e){reset();}
+  };
+  try{
+    const a=getAudio(en);
+    if(audioEl&&audioEl!==a)audioEl.pause();
+    audioEl=a;
+    let usedFallback=false;
+    a.onended=()=>{if(!usedFallback)finish(true);};
+    a.onerror=()=>{usedFallback=true;fallback();};
+    try{a.currentTime=0;}catch(e){}
+    const p=a.play();
+    if(p)p.catch(()=>{usedFallback=true;fallback();});
+  }catch(e){fallback();}
+}
+
+const unitsBox=document.getElementById("units");
+const totalRows=CFG.data.reduce((s,u)=>s+u.words.length,0);
+unitsBox.innerHTML=CFG.data.map((u,i)=>{
+  const rows=u.words.map(w=>{
+    const ph=w[2]?`<span class="w-ph">/${w[2]}/</span>`:"";
+    return `<div class="w-row" data-en="${w[0].toLowerCase()}" data-zh="${w[1]}"><span class="w-word">${w[0]}</span>${ph}<span class="w-zh">${w[1]}</span><button class="w-btn" data-w="${w[0]}">🔊</button></div>`;
+  }).join("");
+  return `<details class="unit"${i===0?" open":""}><summary><span class="u-head"><span class="u-name">${u.name}</span><span class="u-count">${u.words.length} 词</span></span><span class="u-arrow">▶</span></summary><div class="word-list">${rows}</div></details>`;
+}).join("");
+unitsBox.addEventListener("click",e=>{
+  const b=e.target.closest(".w-btn");
+  if(b)playWord(b.getAttribute("data-w"),b);
+});
+
+const search=document.getElementById("search");
+const tip=document.getElementById("resultTip");
+const emptyTip=document.getElementById("emptyTip");
+search.addEventListener("input",()=>{
+  const kw=search.value.trim().toLowerCase();
+  const rows=document.querySelectorAll(".w-row");
+  let hits=0;
+  rows.forEach(r=>{
+    const hit=!kw||r.getAttribute("data-en").includes(kw)||r.getAttribute("data-zh").includes(kw);
+    r.classList.toggle("hidden-row",!hit);
+    if(hit)hits++;
+  });
+  document.querySelectorAll("details.unit").forEach(d=>{
+    const any=d.querySelector(".w-row:not(.hidden-row)");
+    d.style.display=kw&&!any?"none":"";
+    if(kw&&any)d.open=true;
+  });
+  if(kw){tip.style.display="block";tip.textContent="找到 "+hits+" 个单词（共 "+totalRows+" 词）";}
+  else tip.style.display="none";
+  emptyTip.style.display=kw&&hits===0?"block":"none";
+});
+</script>
+</body>
+</html>

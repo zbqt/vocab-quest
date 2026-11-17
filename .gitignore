@@ -1,0 +1,4 @@
+node_modules/
+test/_inline.js
+*.log
+.DS_Store
