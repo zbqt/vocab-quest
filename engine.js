@@ -117,7 +117,8 @@
       placement: null,  // { at, estimate, bands, levels }
       lastDailyDate: "", // 上次完成「今天 N 词」的日期
       lastDailyCount: 0,
-      events: []        // 环形事件日志
+      events: [],       // 环形事件日志
+      gSeen: {}         // 语法题做过记录 {题干: 时间戳}，用于优先出没做过的题
     };
   }
 
@@ -284,6 +285,17 @@
 
     if (Array.isArray(raw.events)) {
       s.events = raw.events.filter(function (e) { return e && typeof e === "object"; }).slice(-EVENT_CAP);
+    }
+
+    // 语法题做题记录：保留最近 300 条，用于「优先出没做过的题」
+    if (raw.gSeen && typeof raw.gSeen === "object") {
+      var gs = {};
+      Object.keys(raw.gSeen)
+        .filter(function (k) { return typeof raw.gSeen[k] === "number" && raw.gSeen[k] > 0; })
+        .sort(function (a, b) { return raw.gSeen[b] - raw.gSeen[a]; })
+        .slice(0, 300)
+        .forEach(function (k) { gs[String(k).slice(0, 300)] = raw.gSeen[k]; });
+      s.gSeen = gs;
     }
     // 统一补 FSRS 参数（放在最后，保证 rescue 迁移出来的词也能补到）
     Object.keys(s.words).forEach(function (w) { backfillFSRS(s.words[w]); });

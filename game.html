@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Vocab Quest</title>
 <meta name="theme-color" content="#5b6cff">
 <meta name="description" content="Vocab Quest 闯关：每关 12 个词全部出题，FSRS-5 算出每个词的到期日，今天该背几个一清二楚。">
@@ -15,9 +15,9 @@
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#eef2ff;color:#1f2937;min-height:100vh;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#eef2ff;color:#1f2937;min-height:100vh;min-height:100dvh;-webkit-tap-highlight-color:transparent}
 button{font-family:inherit;cursor:pointer;border:none;outline:none}
-.app{max-width:900px;margin:0 auto;padding:14px}
+.app{max-width:900px;margin:0 auto;padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
 .card{background:#fff;border-radius:16px;box-shadow:0 4px 16px rgba(40,50,90,.08)}
 
 /* 顶部 */
@@ -243,6 +243,14 @@ body.shuf .stars{color:#7c3aed}
       <div class="card ov-card"><h2 id="ovMastered">0</h2><p>长期掌握</p></div>
       <div class="card ov-card"><h2 id="ovSeen">0</h2><p>学过的词</p></div>
       <div class="card ov-card"><h2 id="ovStreak">0</h2><p>连续天数</p></div>
+    </div>
+
+    <div class="review-card" id="rescueCard" style="display:none;background:linear-gradient(135deg,#fff7ed,#fef2f2);border-color:#fed7aa">
+      <div>
+        <h3>🩹 错词重练</h3>
+        <p id="rescueDesc">答错过的词，趁热再来一遍最快记住</p>
+      </div>
+      <button class="btn btn-warm" id="rescueBtn">练 0 词</button>
     </div>
 
     <div class="mode-switch">
@@ -580,6 +588,17 @@ function renderHome(){
   $("ovMastered").textContent=c.mastered;
   $("ovSeen").textContent=c.seen;
   $("ovStreak").textContent=streak;
+
+  // 错词重练卡：没有错词就整块不出现，避免占着位置催人
+  const rc=$("rescueCard");
+  if(rc){
+    const rw=rescueWords();
+    if(rw.length){
+      rc.style.display="flex";
+      $("rescueBtn").textContent="练 "+Math.min(rw.length,RESCUE_MAX)+" 词";
+      $("rescueDesc").textContent="答错过的 "+rw.length+" 个词，趁热再来一遍最快记住";
+    }else rc.style.display="none";
+  }
   $("hpText").textContent=S.hp;
   $("lvText").textContent=S.lv;
   $("coinText").textContent=S.coin;
@@ -644,6 +663,16 @@ function btn(txt,cls,fn){const b=document.createElement("button");b.className="b
 /* ================= 游戏流程 ================= */
 let G=null;
 function show(view){document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));$(view).classList.add("active");}
+/* 挑语法题：优先出没做过的，做完了再按「最久没做」的顺序补，避免连着几关撞原题 */
+function grammarPick(n){
+  const all=CFG.grammar||[];
+  if(!n||!all.length)return [];
+  const seen=S.gSeen||{};
+  const fresh=shuffle(all.filter(g=>!seen[g.q]));
+  if(fresh.length>=n)return fresh.slice(0,n);
+  const used=all.filter(g=>seen[g.q]).sort((a,b)=>(seen[a.q]||0)-(seen[b.q]||0));
+  return fresh.concat(used).slice(0,n);
+}
 function start(u,l,mode){
   if(G&&G.finishTimer)clearTimeout(G.finishTimer);
   const lpSet=S.shufMode?RLPOOLS:LPOOLS;
@@ -653,7 +682,7 @@ function start(u,l,mode){
   const spellEvery=mode==="review"?3:CFG.spellK[l<=3?0:(l<=8?1:2)];
   const sess=VQ.buildSession({
     words:shuffle(lp.slice()),          // 本关全部 12 词，每词必考一次
-    grammar:mode==="review"?[]:(CFG.grammar||[]),
+    grammar:mode==="review"?[]:grammarPick(gN),
     grammarN:gN, spellEvery:spellEvery, mode:mode, pool:pool
   });
   G={
@@ -772,6 +801,11 @@ function recordWordResult(q,ok,picked){
   if(q.type!=="grammar"&&q.en){
     VQ.recordAnswer(S,{word:q.en,type:q.type,correct:ok,today:todayStr()});
   }
+  // 语法题记一笔「做过的题干」，下次优先挑没做过的（不进记忆状态）
+  if(q.type==="grammar"&&q.prompt){
+    if(!S.gSeen||typeof S.gSeen!=="object")S.gSeen={};
+    S.gSeen[String(q.prompt).slice(0,300)]=Date.now();
+  }
   VQ.appendEvent(S,{
     ts:Date.now(),u:G.u,l:G.l,mode:G.mode,shuf:G.shuf?1:0,
     type:q.type,word:q.en||"",correct:ok?1:0,rt:rt,pick:picked||""
@@ -831,12 +865,14 @@ function finish(win){
   VQ.appendEvent(S,{ts:Date.now(),type:"session_end",mode:G.mode,u:G.u,l:G.l,correct:G.correct,total:total,stars:stars,win:win?1:0});
   save();
   $("resBig").textContent=win?"🎉":(G.hp<=0?"💔":"😢");
-  $("resTitle").textContent=G.daily?"今天的学习完成"
+  $("resTitle").textContent=G.rescue?(win?"错词练完了":"这轮错得有点多")
+    :G.daily?"今天的学习完成"
     :(win?(G.mode==="review"?"复习完成！":"关卡通关！"):(G.hp<=0?"体力耗尽":"再试一次吧"));
   const realCorrect=G.correct-(G.skipped||0);
   $("resSub").textContent=`正确 ${realCorrect}/${total} 题`
     +(G.skipped?`（跳过 ${G.skipped} 个）`:"")
-    +(G.daily?(G.wrong?` · 答错的 ${G.wrong} 个词会再出现`:" · 全对，很稳")
+    +(G.rescue?(G.wrong?` · 还有 ${G.wrong} 个没稳住，建议再来一轮`:" · 全部答对，错词区应该空了不少")
+      :G.daily?(G.wrong?` · 答错的 ${G.wrong} 个词会再出现`:" · 全对，很稳")
       :(win?`，获得 ${stars} 星`:`，需答对 ${G.passNeed} 题通关`));
   $("resExp").textContent=exp;$("resCoin").textContent=coin;
   const ov=$("wordOverview");
@@ -862,7 +898,8 @@ $("backHome").onclick=()=>{
 $("resHome").onclick=goHome;
 $("resAgain").onclick=()=>{
   $("overlay").classList.remove("show");
-  if(G&&G.daily)openDaily();
+  if(G&&G.rescue)openRescue();
+  else if(G&&G.daily)openDaily();
   else start(G.u,G.l,G.mode);
 };
 
@@ -901,6 +938,34 @@ function openDaily(reviewOnly){
   show("gameView");renderQ();
 }
 $("heroBtn").onclick=()=>openDaily();
+
+/* ================= 错词重练（首页卡片） ================= */
+const RESCUE_MAX=12;
+/** 错词区：答错过、且还没连续答对两次的词 */
+function rescueWords(){
+  const out=[];
+  Object.keys(S.words||{}).forEach(w=>{
+    if(VQ.inRescue(S.words[w])&&WORD_INDEX[w])out.push(w);
+  });
+  return out;
+}
+function openRescue(){
+  const ws=shuffle(rescueWords()).slice(0,RESCUE_MAX).map(w=>WORD_INDEX[w]).filter(Boolean);
+  if(!ws.length){toast("目前没有需要重练的错词");return;}
+  const sess=VQ.buildSession({words:ws,wordTypes:ws.map(()=>"match"),grammar:[],grammarN:0,spellEvery:0,mode:"review",pool:BANK});
+  G={
+    u:1,l:0,mode:"review",daily:false,rescue:true,shuf:false,src:ws.map(w=>w[0]),
+    qs:sess.questions,passNeed:sess.passNeed,
+    idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
+    combo:0,correctWords:[],wrongList:[],skipped:0
+  };
+  $("modeTag").textContent="错词重练";
+  $("modeTag").className="mode-tag review";
+  $("levelTitle").textContent="共 "+sess.total+" 个错词";
+  $("gameHint").textContent="只考认词 · 不扣体力 · 同一个词连续答对两次就移出错词区";
+  show("gameView");renderQ();
+}
+$("rescueBtn").onclick=()=>openRescue();
 
 /* ================= 定级测试（3 分钟估词汇量） ================= */
 let P=null;

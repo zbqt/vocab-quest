@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>单词学习中心</title>
 <meta name="theme-color" content="#5b6cff">
 <meta name="description" content="Vocab Quest：把背单词做成能算清账的事。初中/高中/四级/六级四套词库，FSRS 排复习，离线可用。">
@@ -22,7 +22,7 @@
 <meta name="twitter:card" content="summary">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;display:flex;flex-direction:column}
+body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 .wrap{max-width:880px;width:100%;margin:0 auto;padding:0 20px}
 header{padding:56px 0 28px;text-align:center}
 .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(91,108,255,.25)}
@@ -42,7 +42,7 @@ h1{font-size:26px;font-weight:800;letter-spacing:1px}
 .card:hover .arrow{transform:translateX(3px);color:#5b6cff}
 .card .game-link{position:absolute;inset:0}
 .cz .card-icon{background:#e8f6ee}.gz .card-icon{background:#fff4e5}.cet4 .card-icon{background:#eef1ff}.c6 .card-icon{background:#fdeef4}
-footer{margin-top:auto;padding:22px 0 30px;text-align:center;color:#a3a9ba;font-size:12px;line-height:1.8}
+footer{margin-top:auto;padding:22px 0 calc(30px + env(safe-area-inset-bottom));text-align:center;color:#a3a9ba;font-size:12px;line-height:1.8}
 footer a{color:#5b6cff;text-decoration:none;font-weight:700}
 @media(max-width:600px){
   header{padding:36px 0 20px}
@@ -92,22 +92,18 @@ footer a{color:#5b6cff;text-decoration:none;font-weight:700}
     数据来源：有道词典开源词书 · 发音由浏览器自带语音合成 · 每关覆盖本关全部单词
   </footer>
 </div>
-<script src="vocab_cz.js"></script>
-<script src="vocab_gz.js"></script>
-<script src="vocab.js"></script>
-<script src="vocab_c6.js"></script>
+<script src="stats.js"></script>
 <script>
-const COUNTS={"cz":VOCAB_CZ,"gz":VOCAB_GZ,"cet4":VOCAB,"c6":VOCAB_C6};
-let total=0;const uniq=new Set();
-Object.keys(COUNTS).forEach(k=>{
-  const n=COUNTS[k].reduce((s,u)=>s+u.words.length,0);
-  total+=n;
-  COUNTS[k].forEach(u=>u.words.forEach(w=>uniq.add(w[0].toLowerCase())));
-  const el=document.getElementById("cnt-"+k);
-  if(el)el.textContent=n+" 条";
-});
-document.getElementById("totalWords").textContent=total.toLocaleString();
-document.getElementById("uniqWords").textContent=uniq.size.toLocaleString();
+/* 首页只读统计文件（0.4KB），不再加载 700KB 词库；数字由 npm run gen:stats 生成 */
+(function(){
+  if(typeof VQ_STATS==="undefined")return;   // 统计文件缺失时保留破折号，不报错
+  ["cz","gz","cet4","c6"].forEach(k=>{
+    const el=document.getElementById("cnt-"+k);
+    if(el&&VQ_STATS.books[k])el.textContent=VQ_STATS.books[k].toLocaleString()+" 条";
+  });
+  document.getElementById("totalWords").textContent=VQ_STATS.total.toLocaleString();
+  document.getElementById("uniqWords").textContent=VQ_STATS.uniq.toLocaleString();
+})();
 </script>
 <script>
 /* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */

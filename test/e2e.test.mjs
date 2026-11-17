@@ -32,7 +32,7 @@ function boot(cat = "cet4") {
 
   // 必须一次性 eval：`const VOCAB_CZ` 这类顶层常量在多次 eval 之间不共享
   win.eval(DATA_FILES.map(read).join("\n") + "\n" + INLINE +
-    "\nwindow.__t={getS:()=>S,getG:()=>G,getP:()=>P};");
+    "\nwindow.__t={getS:()=>S,getG:()=>G,getP:()=>P,cfg:CFG};");
 
   return { dom, win, doc, api: win.__t, $: (id) => doc.getElementById(id) };
 }
@@ -459,4 +459,88 @@ test("答题后的自动朗读被拦时不打扰用户，喇叭仍可点", () =>
   assert.equal(ctx.$("playBtn").textContent, "🔊 播放发音", "自动朗读失败应静默复位");
   assert.equal(ctx.$("audioStatus").textContent, "", "不该在答题后弹错误");
   assert.equal(ctx.$("playBtn").disabled, false);
+});
+
+/* ================= 本轮优化：首屏减重 / 语法防重 / 错词重练 ================= */
+
+test("首页统计来自 stats.js，且与四个词库完全一致", () => {
+  const stats = new Function(read("stats.js") + ";return VQ_STATS;")();
+  const books = { cz: "vocab_cz.js", gz: "vocab_gz.js", cet4: "vocab.js", c6: "vocab_c6.js" };
+  let total = 0;
+  const uniq = new Set();
+  for (const [k, f] of Object.entries(books)) {
+    const src = read(f);
+    const name = src.match(/(?:const|var|let)\s+([A-Za-z_$][\w$]*)\s*=/)[1];
+    const data = new Function(src + `;return ${name};`)();
+    const n = data.reduce((s, u) => s + u.words.length, 0);
+    assert.equal(stats.books[k], n, k + " 词条数与 stats.js 不一致，请重跑 npm run gen:stats");
+    total += n;
+    data.forEach((u) => u.words.forEach((w) => uniq.add(String(w[0]).toLowerCase().trim())));
+  }
+  assert.equal(stats.total, total);
+  assert.equal(stats.uniq, uniq.size, "去重数与 stats.js 不一致");
+  assert.equal(stats.phonetic, total, "有词条缺音标");
+});
+
+test("首页不再下载完整词库（716KB → 一个统计文件）", () => {
+  const html = read("index.html");
+  for (const f of ["vocab.js", "vocab_c6.js", "vocab_cz.js", "vocab_gz.js"]) {
+    assert.ok(!html.includes(f), "首页不该再引用 " + f);
+  }
+  assert.ok(html.includes('src="stats.js"'), "首页应只读 stats.js");
+});
+
+test("语法题库：答案必须在选项里，且每级不少于 30 道", () => {
+  const src = read("grammar.js");
+  const G = new Function(src + ";return GRAMMAR;")();
+  for (const k of Object.keys(G)) {
+    assert.ok(G[k].length >= 30, k + " 语法题不足 30 道，练几关就会撞原题");
+    for (const q of G[k]) {
+      assert.ok(q.options.includes(q.a), `${k}: 答案不在选项里 → ${q.q}`);
+      assert.equal(new Set(q.options).size, 4, `${k}: 选项应互不相同 → ${q.q}`);
+      assert.ok(q.tip && q.tip.length > 3, `${k}: 缺少解析 → ${q.q}`);
+    }
+    const prompts = new Set(G[k].map((q) => q.q));
+    assert.equal(prompts.size, G[k].length, k + " 有重复题干");
+  }
+});
+
+test("语法题优先出没做过的：做过的题排在后面", () => {
+  const ctx = boot("cet4");
+  const S = ctx.api.getS();
+  const all = ctx.api.cfg.grammar;   // const 声明不会挂到 window 上，从 __t 取
+  assert.ok(all.length >= 30);
+
+  // 标记除最后 3 题外全部做过
+  S.gSeen = {};
+  all.slice(0, all.length - 3).forEach((g, i) => { S.gSeen[g.q] = 1000 + i; });
+
+  const picked = ctx.win.grammarPick(3).map((g) => g.q);
+  const freshSet = new Set(all.slice(-3).map((g) => g.q));
+  assert.equal(picked.length, 3);
+  picked.forEach((q) => assert.ok(freshSet.has(q), "应优先挑没做过的题，实际挑到：" + q));
+
+  // 全做完之后仍能出题（按最久没做的补），不会变成空白
+  all.forEach((g, i) => { S.gSeen[g.q] = 5000 + i; });
+  const again = ctx.win.grammarPick(3).map((g) => g.q);
+  assert.deepEqual(again.sort(), all.slice(0, 3).map((g) => g.q).sort(), "应挑最久没做的三题");
+});
+
+test("错词重练：没有错词时不出现，有错词后可一键开练", () => {
+  const ctx = boot("cet4");
+  assert.equal(ctx.$("rescueCard").style.display, "none", "没错词时不该占位置");
+
+  const S = ctx.api.getS();
+  ctx.win.VQEngine.recordAnswer(S, { word: "abandon", type: "match", correct: false, today: "2026-11-17" });
+  ctx.win.renderHome();
+  assert.equal(ctx.$("rescueCard").style.display, "flex", "有错词时应出现重练卡片");
+  assert.match(ctx.$("rescueBtn").textContent, /练 \d+ 词/);
+
+  ctx.$("rescueBtn").click();
+  const G = ctx.api.getG();
+  assert.equal(G.rescue, true, "应进入错词重练模式");
+  assert.equal(G.mode, "review", "错词重练不扣体力、不计星");
+  assert.ok(G.qs.length >= 1);
+  assert.equal(ctx.$("modeTag").textContent, "错词重练");
+  assert.ok(ctx.$("gameView").classList.contains("active"));
 });
