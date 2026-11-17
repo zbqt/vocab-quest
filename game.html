@@ -103,6 +103,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .hp-hearts{font-size:18px;letter-spacing:3px}
 .game-hint{font-size:12px;color:#9ca3af}
 .next-btn{width:100%;margin-top:12px;padding:13px;font-size:15px;border-radius:12px;background:#6c7bff;color:#fff;font-weight:800}
+.skip-known{width:100%;margin-top:10px;padding:9px;border-radius:10px;background:#f6f7fb;color:#8b93a7;font-size:12px;font-weight:700;border:1px dashed #d8dded;transition:.15s}
+.skip-known:hover{background:#eef1ff;color:#5b6cff;border-color:#c3ccff}
 
 /* 结算 */
 .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -133,6 +135,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
   .options{grid-template-columns:1fr}
   .stats{margin-top:8px;width:100%}
   header{flex-wrap:wrap}
+  .hero-title{font-size:21px}
+  .hero-badge{padding:7px 10px}
+  .place-band-row{grid-template-columns:46px 1fr 34px}
 }
 /* 顺序/乱序模式切换 */
 .mode-switch{display:flex;gap:6px;background:#eceef5;border-radius:14px;padding:4px;margin:0 4px 10px}
@@ -142,6 +147,40 @@ body.shuf .mode-tag{background:#f3e8ff;color:#7c3aed}
 body.shuf .unit-num{background:#f3e8ff;color:#7c3aed}
 body.shuf .level-id{color:#7c3aed}
 body.shuf .stars{color:#7c3aed}
+
+/* 今日计划（首页唯一入口） */
+.hero{padding:18px;margin-bottom:10px;background:linear-gradient(150deg,#f6f7ff,#eef2ff 45%,#f0fdfa);border:1px solid #dfe5ff}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.hero-eyebrow{font-size:11px;font-weight:800;color:#5b6cff;letter-spacing:.4px}
+.hero-title{font-size:24px;margin:5px 0 3px;color:#1f2937;line-height:1.2}
+.hero-sub{font-size:12px;color:#6b7280}
+.hero-badge{flex:none;text-align:center;background:#fff;border-radius:14px;padding:9px 13px;box-shadow:0 2px 10px rgba(40,50,90,.08)}
+.hero-badge b{display:block;font-size:19px;color:#5b6cff;line-height:1.15}
+.hero-badge span{font-size:10px;color:#9ca3af}
+.hero-bar{height:8px;background:#e3e8ff;border-radius:999px;overflow:hidden;margin:15px 0 13px}
+.hero-bar-fill{height:100%;width:0;background:linear-gradient(90deg,#6c7bff,#4653d4);transition:.35s}
+.hero-btn{width:100%;padding:15px;border-radius:14px;background:#5b6cff;color:#fff;font-size:16px;font-weight:800;transition:.15s}
+.hero-btn:hover{background:#4653d4}
+.hero-btn.done{background:#e8f7ee;color:#15803d}
+.hero-btn:disabled{opacity:.5;cursor:not-allowed}
+.hero-foot{font-size:11px;color:#9ca3af;text-align:center;margin-top:10px;line-height:1.8}
+.hero-foot a{color:#5b6cff;font-weight:700;text-decoration:none;cursor:pointer}
+
+/* 定级卡 */
+.place-card{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;margin-bottom:12px}
+.place-card h3{font-size:14px;margin-bottom:3px}
+.place-card p{font-size:11px;color:#6b7280;line-height:1.5}
+
+/* 定级测试 */
+.place-enemy{text-align:center;padding:26px 16px;border-radius:14px;background:linear-gradient(160deg,#f5f7ff,#eef2ff);border:2px dashed #ccd6ff;margin-bottom:8px}
+.place-enemy .enemy-word{font-size:34px;color:#3346b8}
+.place-band{font-size:10px;color:#8b93b8;font-weight:700;letter-spacing:.4px}
+.place-bands{display:grid;gap:5px;margin:14px 0 6px;text-align:left}
+.place-band-row{display:grid;grid-template-columns:52px 1fr 40px;align-items:center;gap:8px;font-size:11px;color:#6b7280}
+.place-band-track{height:6px;background:#eef1f6;border-radius:999px;overflow:hidden}
+.place-band-fill{height:100%;background:#6c7bff;border-radius:999px}
+.place-band-row.warm .place-band-fill{background:#f59e0b}
+.place-band-row.hot .place-band-fill{background:#22c55e}
 </style>
 </head>
 <body>
@@ -164,18 +203,35 @@ body.shuf .stars{color:#7c3aed}
       </div>
     </header>
 
-    <div class="overview">
-      <div class="card ov-card"><h2 id="ovTotal">36</h2><p>关卡总数</p></div>
-      <div class="card ov-card"><h2 id="ovPassed">0/36</h2><p>已通关</p></div>
-      <div class="card ov-card"><h2 id="ovMastered">0/0</h2><p>长期掌握 / 全库</p></div>
+    <!-- 今天该学什么：整个首页只有这一个主按钮 -->
+    <div class="card hero">
+      <div class="hero-top">
+        <div>
+          <div class="hero-eyebrow" id="heroEyebrow">今日计划</div>
+          <h2 class="hero-title" id="heroTitle">今天 20 词</h2>
+          <p class="hero-sub" id="heroSub">正在计算今天该学什么…</p>
+        </div>
+        <div class="hero-badge">
+          <b id="heroDone">0</b><span>今天已学</span>
+        </div>
+      </div>
+      <div class="hero-bar"><div class="hero-bar-fill" id="heroBarFill"></div></div>
+      <button class="hero-btn" id="heroBtn">开始今天的学习</button>
+      <div class="hero-foot" id="heroFoot"></div>
     </div>
 
-    <div class="card review-card">
+    <div class="card place-card" id="placeCard">
       <div>
-        <h3 id="reviewTitle">复习地下城 · 今日待完成</h3>
-        <p id="reviewDesc">复习今日到期的单词，不消耗体力</p>
+        <h3 id="placeTitle">先测一下你现在的词汇量</h3>
+        <p id="placeDesc">3 分钟，42 道四选一 · 认识的不再重复学</p>
       </div>
-      <button class="btn btn-primary" id="reviewBtn">进入复习</button>
+      <button class="btn btn-plain" id="placeBtn">开始测试</button>
+    </div>
+
+    <div class="overview">
+      <div class="card ov-card"><h2 id="ovMastered">0</h2><p>长期掌握</p></div>
+      <div class="card ov-card"><h2 id="ovSeen">0</h2><p>学过的词</p></div>
+      <div class="card ov-card"><h2 id="ovStreak">0</h2><p>连续天数</p></div>
     </div>
 
     <div class="mode-switch">
@@ -185,7 +241,7 @@ body.shuf .stars{color:#7c3aed}
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 4px 8px">
       <h3 style="font-size:16px">关卡地图</h3>
-      <span style="font-size:11px;color:#9ca3af">点击单元展开 · 通关后可复习/测试</span>
+      <span style="font-size:11px;color:#9ca3af">想按单元刷就点这里 · 通关后可复习/测试</span>
     </div>
     <div id="unitContainer"></div>
     <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词</div>
@@ -228,12 +284,50 @@ body.shuf .stars{color:#7c3aed}
         <div class="game-hint" id="gameHint">答对 8 题通关，答错扣 1 体力</div>
       </div>
       <button class="next-btn" id="nextBtn" style="display:none">下一题 →</button>
+      <button class="skip-known" id="knownBtn">这词我会，跳过</button>
+    </div>
+  </div>
+
+  <!-- ============ 定级测试 ============ -->
+  <div class="view" id="placeView">
+    <div class="back-bar">
+      <button class="back-btn" id="placeBack">←</button>
+      <span class="mode-tag">定级测试</span>
+      <span style="font-size:13px;color:#6b7280;font-weight:700" id="placeCount">1/42</span>
+    </div>
+
+    <div class="card" style="padding:16px" id="placeQuiz">
+      <div class="progress-row">
+        <div class="progress-track"><div class="progress-fill" id="placeFill"></div></div>
+      </div>
+      <div class="place-enemy">
+        <div class="enemy-label">这个词的中文意思是？</div>
+        <div class="enemy-word" id="placeWord">—</div>
+        <div class="audio-row">
+          <button class="audio-btn" id="placePlay">🔊 播放发音</button>
+          <span class="phonetic" id="placePh"></span>
+        </div>
+      </div>
+      <div class="options" id="placeOptions"></div>
+      <div class="feedback" id="placeFeedback"></div>
+      <button class="next-btn" id="placeNext" style="display:none">下一题 →</button>
+      <div class="game-hint" style="text-align:center;margin-top:10px">不确定就随便选，猜对会被扣掉，估不准不怪你</div>
+    </div>
+
+    <div class="card" style="padding:22px;text-align:center;display:none" id="placeResultBox">
+      <div style="font-size:44px" id="prBig">📊</div>
+      <h2 style="font-size:22px;margin:8px 0 4px">你的四级词汇量约 <span id="prEstimate" style="color:#5b6cff">—</span> 词</h2>
+      <p style="color:#6b7280;font-size:13px;margin-bottom:14px" id="prSub">共 3,000 词，你已认识其中一部分</p>
+      <div class="place-bands" id="prBands"></div>
+      <div class="hero-foot" id="prFoot" style="margin-bottom:14px"></div>
+      <div class="result-btns">
+        <button class="btn btn-primary" id="prGo">开始今天的学习</button>
+        <button class="btn btn-ghost" id="prAgain">重测</button>
+      </div>
     </div>
   </div>
 
 </div>
-
-<!-- 结算弹层 -->
 <div class="overlay" id="overlay">
   <div class="result-box">
     <div class="big" id="resBig">🎉</div>
@@ -262,6 +356,7 @@ body.shuf .stars{color:#7c3aed}
 <script src="vocab.js"></script>
 <script src="vocab_c6.js"></script>
 <script src="grammar.js"></script>
+<script src="fsrs.js"></script>
 <script src="engine.js"></script>
 <script>
 /* ================= 阶段配置 ================= */
@@ -308,12 +403,15 @@ UNITS.forEach(u=>{
 });
 
 /* ================= 存档（各阶段独立存档键） ================= */
-/* 模型 / 星级 / 掌握判定 / 错词调度 / 出题 全部在 engine.js（有单元测试） */
+/* 模型 / 星级 / 掌握判定 / 记忆调度（FSRS）/ 出题 全部在 engine.js + fsrs.js（有测试） */
 const VQ=VQEngine;
 const KEY=CFG.key;
 const CTX={units:UNITS.map(u=>({id:u.id,levels:u.levels})),bank:BANK.map(w=>w[0])};
+const WORD_INDEX={};BANK.forEach(w=>{if(!WORD_INDEX[w[0]])WORD_INDEX[w[0]]=w;});
 let LEGACY_MIGRATED=false;
 let S=load();
+/** 新词学习顺序：定级测出的掌握率决定哪一段先学（不是砍词，是排先后） */
+function learnOrderNow(){return VQ.learnOrder(BANK.map(w=>w[0]),S.placement);}
 function load(){
   let raw=null;
   try{const rawStr=localStorage.getItem(KEY);if(rawStr)raw=JSON.parse(rawStr);}catch(e){}
@@ -426,12 +524,68 @@ function unitName(u){return S.shufMode?("🎲 乱序 "+u.id):u.name;}
 function unitMeta(u){return S.shufMode?("随机组合 · 单词不按字母排序"):u.en;}
 
 /* ================= 首页渲染 ================= */
+/** 今天已经答了多少题（含闯关），用于首页进度 */
+function todayStat(){
+  const d=new Date();d.setHours(0,0,0,0);const t0=d.getTime();
+  let answered=0,correct=0;
+  (S.events||[]).forEach(e=>{
+    if(!e.ts||e.ts<t0)return;
+    if(e.type&&e.type!=="session_end"){answered++;if(e.correct)correct++;}
+  });
+  return {answered,correct};
+}
 function renderHome(){
   const c=VQ.counts(S);
-  const due=VQ.dueList(S,todayStr(),99);
-  $("ovTotal").textContent=LEVEL_TOTAL;
-  $("ovPassed").textContent=countAll(passMap())+"/"+LEVEL_TOTAL;
-  $("ovMastered").textContent=c.mastered+"/"+WORD_TOTAL;
+  const order=learnOrderNow();
+  const q=VQ.dailyQueue(S,{today:todayStr(),total:VQ.DAILY_TOTAL,newMax:VQ.DAILY_NEW,newFloor:VQ.DAILY_NEW_FLOOR,order:order});
+  const st=todayStat();
+  const streak=VQ.streakDays(S,todayStr());
+  const target=VQ.DAILY_TOTAL;
+  const done=Math.min(st.answered,target);
+  const allDone=done>=target;
+
+  $("heroEyebrow").textContent=(streak?"连续第 "+streak+" 天 · ":"")+"今日计划";
+  $("heroDone").textContent=st.answered;
+  $("heroBarFill").style.width=Math.min(100,done/target*100)+"%";
+  $("heroTitle").textContent=allDone?"今天的任务已完成":(q.total?("今天 "+q.total+" 词"):"今天没有待学词");
+  $("heroSub").textContent=allDone
+    ? "已答 "+st.answered+" 题（正确 "+st.correct+"）· 想多学可以再开一组"
+    : (q.total?("复习 "+q.reviewCount+" · 新词 "+q.newCount+" · 约 "+q.minutes+" 分钟"):"去关卡地图挑一关刷吧");
+
+  const hb=$("heroBtn");
+  if(!q.total){
+    hb.textContent="今天的词都学完了";hb.disabled=true;hb.className="hero-btn done";
+  }else{
+    hb.disabled=false;
+    hb.textContent=allDone?"再学一组":"开始今天的学习";
+    hb.className="hero-btn"+(allDone?" done":"");
+  }
+
+  const bits=[];
+  bits.push("全库还剩 "+q.remainingNew+" 个新词");
+  if(q.remainingNew&&VQ.DAILY_NEW)bits.push("按每天 "+VQ.DAILY_NEW+" 词约 "+q.daysToFinish+" 天");
+  if(q.total)bits.push("遇到会的词点「这词我会」即可跳过");
+  const dueNote=q.dueCount>q.reviewCount?("<br>另有 "+(q.dueCount-q.reviewCount)+" 个到期词排在明天 · <a id='doReview'>只复习到期词</a>"):"";
+  $("heroFoot").innerHTML=bits.join(" · ")+dueNote;
+  const dr=$("doReview");if(dr)dr.onclick=()=>openDaily(true);
+
+  // 定级卡
+  const pc=$("placeCard");
+  if(S.placement&&S.placement.estimate){
+    $("placeTitle").textContent="已测：四级范围约 "+S.placement.estimate.toLocaleString()+" 词";
+    $("placeDesc").textContent="答对的 "+(S.placement.skipped||0)+" 词已跳过，最生的区间优先学";
+    $("placeBtn").textContent="重测";
+    pc.style.display="flex";
+  }else{
+    $("placeTitle").textContent="先测一下你现在的词汇量";
+    $("placeDesc").textContent="3 分钟 · 42 道四选一 · 认识的不再重复学";
+    $("placeBtn").textContent="开始测试";
+    pc.style.display="flex";
+  }
+
+  $("ovMastered").textContent=c.mastered;
+  $("ovSeen").textContent=c.seen;
+  $("ovStreak").textContent=streak;
   $("hpText").textContent=S.hp;
   $("lvText").textContent=S.lv;
   $("coinText").textContent=S.coin;
@@ -439,23 +593,6 @@ function renderHome(){
   $("tabSeq").classList.toggle("active",!S.shufMode);
   $("tabShuf").classList.toggle("active",S.shufMode);
   document.body.classList.toggle("shuf",S.shufMode);
-
-  if(S.lastReviewDate===todayStr()){
-    $("reviewTitle").textContent="复习队列 · 今日已完成";
-    $("reviewDesc").textContent="今天复习了 "+S.reviewed+" 个词，明天还有新的到期词";
-    $("reviewBtn").textContent="已完成";
-    $("reviewBtn").disabled=true;
-  }else if(!due.length){
-    $("reviewTitle").textContent="复习队列 · 暂无到期";
-    $("reviewDesc").textContent="今天没有到期词，去闯关学新词吧";
-    $("reviewBtn").disabled=true;
-    $("reviewBtn").textContent="暂无到期";
-  }else{
-    $("reviewTitle").textContent="复习队列 · 到期 "+due.length+" 词";
-    $("reviewDesc").textContent="其中错词 "+due.filter(x=>x.rescue).length+" 个 · 不消耗体力";
-    $("reviewBtn").disabled=false;
-    $("reviewBtn").textContent="开始复习";
-  }
 
   const box=$("unitContainer");box.innerHTML="";
   UNITS.forEach(u=>box.appendChild(renderUnit(u)));
@@ -532,7 +669,7 @@ function start(u,l,mode){
     hp:mode==="play"?3:999,
     finished:false,answered:false,qStart:Date.now(),
     combo:0,correctWords:[],
-    wrongList:[]
+    wrongList:[],skipped:0
   };
   $("modeTag").textContent=mode==="play"?(S.shufMode?"🎲 乱序闯关":"📖 顺序闯关"):mode==="review"?"复习模式":(S.shufMode?"🎲 乱序测试":"测试模式");
   $("modeTag").className="mode-tag"+(mode==="play"?"":" "+mode);
@@ -560,6 +697,7 @@ function renderQ(){
   if(q.optDefs)q.optDefs.forEach(d=>preloadWord(d.en));
   const od=$("optDefs");od.style.display="none";od.innerHTML="";
   $("nextBtn").style.display="none";G.answered=false;
+  $("knownBtn").style.display=(q.type!=="grammar"&&q.en)?"block":"none";
 
   const box=$("optionsBox");box.innerHTML="";
   if(q.type==="match"||q.type==="grammar"){
@@ -664,6 +802,19 @@ $("nextBtn").onclick=()=>{
   if(G.idx>=G.qs.length)finish(G.correct>=G.passNeed);
   else renderQ();
 };
+/* 「这词我会」：不判对错，直接推到 60 天后抽查（和定级跳过同一套逻辑） */
+$("knownBtn").onclick=()=>{
+  if(!G||G.answered||G.finished)return;
+  const q=G.qs[G.idx];
+  if(!q||!q.en||q.type==="grammar")return;
+  VQ.markKnown(S,q.en,{today:todayStr()});
+  VQ.appendEvent(S,{ts:Date.now(),type:"skip",word:q.en,mode:G.mode,u:G.u,l:G.l});
+  save();
+  G.correct++;G.skipped=(G.skipped||0)+1;G.combo=0;G.answered=true;
+  G.idx++;
+  if(G.idx>=G.qs.length)finish(G.correct>=G.passNeed);
+  else renderQ();
+};
 
 function finish(win){
   if(G.finished)return;G.finished=true;
@@ -686,8 +837,13 @@ function finish(win){
   VQ.appendEvent(S,{ts:Date.now(),type:"session_end",mode:G.mode,u:G.u,l:G.l,correct:G.correct,total:total,stars:stars,win:win?1:0});
   save();
   $("resBig").textContent=win?"🎉":(G.hp<=0?"💔":"😢");
-  $("resTitle").textContent=win?(G.mode==="review"?"复习完成！":"关卡通关！"):(G.hp<=0?"体力耗尽":"再试一次吧");
-  $("resSub").textContent=`正确 ${G.correct}/${total} 题`+(win?`，获得 ${stars} 星`:`，需答对 ${G.passNeed} 题通关`);
+  $("resTitle").textContent=G.daily?"今天的学习完成"
+    :(win?(G.mode==="review"?"复习完成！":"关卡通关！"):(G.hp<=0?"体力耗尽":"再试一次吧"));
+  const realCorrect=G.correct-(G.skipped||0);
+  $("resSub").textContent=`正确 ${realCorrect}/${total} 题`
+    +(G.skipped?`（跳过 ${G.skipped} 个）`:"")
+    +(G.daily?(G.wrong?` · 答错的 ${G.wrong} 个词会再出现`:" · 全对，很稳")
+      :(win?`，获得 ${stars} 星`:`，需答对 ${G.passNeed} 题通关`));
   $("resExp").textContent=exp;$("resCoin").textContent=coin;
   const ov=$("wordOverview");
   const wrong=G.wrongList;
@@ -712,32 +868,125 @@ $("backHome").onclick=()=>{
 $("resHome").onclick=goHome;
 $("resAgain").onclick=()=>{
   $("overlay").classList.remove("show");
-  if(G&&G.daily&&G.src&&G.src.length)openDaily(G.src);
+  if(G&&G.daily)openDaily();
   else start(G.u,G.l,G.mode);
 };
-function openDaily(words){
-  const sess=VQ.buildSession({words:shuffle(words.slice()),grammar:[],grammarN:0,spellEvery:3,mode:"review",pool:BANK});
+
+/* ================= 今天 N 词（首页唯一入口） ================= */
+/**
+ * 队列由引擎排好：错词 → 到期复习 → 新词，复习与新词交替。
+ * 题型分开：新词只考「认词」（四选一），复习过的词才考「拼写」。
+ * 理由——第一次见就要求拼写是刁难，认得出就开始建立了记忆。
+ */
+function openDaily(reviewOnly){
+  const q=VQ.dailyQueue(S,{today:todayStr(),total:VQ.DAILY_TOTAL,newMax:VQ.DAILY_NEW,newFloor:VQ.DAILY_NEW_FLOOR,order:learnOrderNow()});
+  if(!q.total){toast("今天没有待学的词，去关卡地图随便刷一关吧");return;}
+  let items=q.words.filter(it=>WORD_INDEX[it.word]);
+  if(reviewOnly)items=items.filter(it=>!it.isNew);
+  if(!items.length){toast("今天没有到期的词，直接学新词吧");return;}
+
+  const words=items.map(it=>WORD_INDEX[it.word]);
+  // 只有「曾经答对过」的词才考拼写。刚见过一次、甚至刚答错的词仍只考认词——
+  // 第二次见面就要求拼写是刁难，也容易把人劝退。
+  const wordTypes=items.map(it=>{
+    const ws=S.words[it.word];
+    return ws&&(ws.okDays||[]).length>0?"spell":"match";
+  });
+  const sess=VQ.buildSession({words,wordTypes,grammar:[],grammarN:0,spellEvery:0,mode:"review",pool:BANK});
   G={
-    u:1,l:0,mode:"review",daily:true,shuf:false,src:words.slice(),
+    u:1,l:0,mode:"review",daily:true,shuf:false,src:words.map(w=>w[0]),
     qs:sess.questions,passNeed:sess.passNeed,
     idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
-    combo:0,correctWords:[],wrongList:[]
+    combo:0,correctWords:[],wrongList:[],skipped:0
   };
-  $("modeTag").textContent="复习队列";$("modeTag").className="mode-tag review";
-  $("levelTitle").textContent="今日到期 "+sess.total+" 词";
+  const nNew=items.filter(x=>x.isNew).length;
+  $("modeTag").textContent=reviewOnly?"到期复习":"今天 "+sess.total+" 词";
+  $("modeTag").className="mode-tag review";
+  $("levelTitle").textContent="复习 "+(items.length-nNew)+" · 新词 "+nNew;
+  $("gameHint").textContent="新词考认词、复习考拼写 · 不扣体力 · 答错当天会再出现";
   show("gameView");renderQ();
 }
-$("reviewBtn").onclick=()=>{
-  if(S.lastReviewDate===todayStr())return;
-  const due=VQ.dueList(S,todayStr(),20);
-  if(!due.length){toast("今天没有到期单词，去闯关学新词吧");return;}
-  const wordIndex={};
-  Object.keys(POOLS).forEach(u=>POOLS[u].forEach(w=>{if(!wordIndex[w[0]])wordIndex[w[0]]={w,u:+u};}));
-  const words=due.map(it=>wordIndex[it.word]).filter(Boolean).map(it=>it.w);
-  if(!words.length){toast("到期词不在当前词库中，请切换对应阶段");return;}
-  openDaily(words);
-  $("gameHint").textContent=`含错词 ${due.filter(x=>x.rescue).length} 个 · 答对 ${G.passNeed} 题完成，不扣体力`;
+$("heroBtn").onclick=()=>openDaily();
+
+/* ================= 定级测试（3 分钟估词汇量） ================= */
+let P=null;
+function startPlacement(){
+  const plan=VQ.placementPlan(BANK,{bands:VQ.PLACEMENT_BANDS,perBand:VQ.PLACEMENT_PER_BAND});
+  if(!plan.questions.length){toast("当前词库太小，无法定级");return;}
+  P={plan,qs:plan.questions,idx:0,answers:[],answered:false};
+  $("placeQuiz").style.display="block";
+  $("placeResultBox").style.display="none";
+  show("placeView");
+  renderPlace();
+}
+function renderPlace(){
+  const q=P.qs[P.idx];
+  if(!q){finishPlacement();return;}
+  P.answered=false;
+  $("placeCount").textContent=(P.idx+1)+"/"+P.qs.length;
+  $("placeFill").style.width=(P.idx/P.qs.length*100)+"%";
+  $("placeWord").textContent=q.en;
+  $("placePh").textContent=q.ph?"/"+q.ph+"/":"";
+  $("placePlay").onclick=()=>{
+    try{const a=getAudio(q.en);if(a){a.currentTime=0;a.play().catch(()=>{});}}catch(e){}
+  };
+  $("placeFeedback").textContent="";$("placeFeedback").className="feedback";
+  $("placeNext").style.display="none";
+  const box=$("placeOptions");box.innerHTML="";
+  q.options.forEach(opt=>{
+    const b=document.createElement("button");
+    b.className="option";b.textContent=opt;
+    b.onclick=()=>pickPlace(b,opt);
+    box.appendChild(b);
+  });
+  preloadWord(q.en);
+}
+function pickPlace(btn,val){
+  if(!P||P.answered)return;
+  P.answered=true;
+  const q=P.qs[P.idx];
+  const ok=val===q.answer;
+  [...document.querySelectorAll("#placeOptions .option")].forEach(b=>{
+    b.disabled=true;
+    if(b.textContent===q.answer)b.classList.add("correct");
+  });
+  if(!ok)btn.classList.add("wrong");
+  $("placeFeedback").textContent=ok?"✔ 认识":"✘ 正确答案："+q.answer;
+  $("placeFeedback").className="feedback "+(ok?"good":"bad");
+  P.answers.push({band:q.band,word:q.en,correct:ok});
+  if(ok)playWord(q.en);
+  $("placeNext").style.display="block";
+  $("placeNext").textContent=(P.idx+1>=P.qs.length)?"查看结果 →":"下一题 →";
+}
+$("placeNext").onclick=()=>{
+  if(!P)return;
+  P.idx++;
+  if(P.idx>=P.qs.length)finishPlacement();
+  else renderPlace();
 };
+function finishPlacement(){
+  const answers=P.answers;
+  const res=VQ.placementResult(answers,{bands:P.plan.bands,size:P.plan.size});
+  VQ.applyPlacement(S,res,{today:todayStr()});
+  VQ.appendEvent(S,{type:"placement_end",estimate:res.estimate,asked:res.asked,correct:res.correct});
+  save();
+  $("placeQuiz").style.display="none";
+  $("placeResultBox").style.display="block";
+  $("placeCount").textContent="结果";
+  $("prEstimate").textContent=res.estimate.toLocaleString();
+  $("prSub").textContent="题库共 "+res.size.toLocaleString()+" 词 · 答对 "+res.correct+"/"+res.asked+" 题（已扣掉四选一蒙对的概率）";
+  $("prBands").innerHTML=res.bands.map(b=>{
+    const pct=Math.round(b.trueRate*100);
+    const cls=b.trueRate>=0.7?"hot":(b.trueRate>=0.35?"warm":"");
+    return `<div class="place-band-row ${cls}"><span>第 ${b.band} 段</span><div class="place-band-track"><div class="place-band-fill" style="width:${pct}%"></div></div><span style="text-align:right">${pct}%</span></div>`;
+  }).join("");
+  $("prFoot").textContent="答对的 "+res.known.length+" 个词先跳过，60 天后抽查一次；掌握率最低的那一段会优先排进每日队列。";
+  P=null;
+}
+$("placeBtn").onclick=startPlacement;
+$("prAgain").onclick=startPlacement;
+$("prGo").onclick=()=>{renderHome();show("homeView");openDaily();};
+$("placeBack").onclick=()=>{P=null;renderHome();show("homeView");};
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&$("overlay").classList.contains("show")&&G&&G.finished)goHome();
 });

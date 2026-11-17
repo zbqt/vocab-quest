@@ -1,11 +1,11 @@
 {
   "name": "vocab-quest",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Vocab Quest — 考试词汇记忆引擎（静态站 + 记忆调度逻辑层）",
+  "description": "Vocab Quest — 考试词汇记忆引擎（FSRS-5 调度 + 静态站）",
   "main": "engine.js",
   "scripts": {
-    "test": "node --test test/engine.test.mjs test/e2e.test.mjs",
+    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/e2e.test.mjs",
     "serve": "npx --yes http-server . -p 8642 -c-1"
   },
   "devDependencies": {
