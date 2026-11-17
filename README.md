@@ -5,6 +5,7 @@
 无框架、无构建、无后端、无外链——下载下来双击就能用，也能直接挂 GitHub Pages。
 
 - 在线版：<https://zbqt.github.io/vocab-quest/>
+- 国内备用：<https://wbapp-uugfv7gc0fmksjuo3hokye.app.workbuddy.host/?sharecode=NHL3SZEC63>（github.io 打不开时用）
 - 词库：初中 1,417 · 高中 3,663 · 四级 3,737 · 六级 2,078，合计 10,895 条词条（去重 6,384 个单词），全部带音标
 
 ## 它和普通背单词网页的区别
