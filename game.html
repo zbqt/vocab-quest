@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vocab Quest</title>
+<meta name="theme-color" content="#5b6cff">
+<meta name="description" content="Vocab Quest 闯关：每关 12 个词全部出题，FSRS-5 算出每个词的到期日，今天该背几个一清二楚。">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vocab Quest">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#eef2ff;color:#1f2937;min-height:100vh;-webkit-tap-highlight-color:transparent}
@@ -987,6 +996,12 @@ $("logoSub").textContent=CFG.name+"词汇闯关";
 $("footTip").textContent=CFG.name+"词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词";
 
 renderHome();
+</script>
+<script>
+/* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */
+if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+  addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{});});
+}
 </script>
 </body>
 </html>

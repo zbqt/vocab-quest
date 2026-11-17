@@ -305,9 +305,15 @@ test("「这词我会」按钮：跳过当前题、推到 60 天后、结算如�
 });
 
 test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮复位", () => {
-  // 静态检查：页面里不允许再出现任何发音接口外链
+  // 静态检查：不许再有发音接口外链；实际会被加载的 src/href 必须是相对路径
+  // （og:image 这类 meta content 只是分享卡片预览，不算页面加载的资源）
   for (const f of ["game.html", "words.html", "index.html"]) {
-    assert.ok(!/dict\.youdao\.com|dictvoice|https?:\/\//.test(read(f)), f + " 不应包含外部资源链接");
+    const src = read(f);
+    assert.ok(!/dict\.youdao\.com|dictvoice/.test(src), f + " 不应再引用有道发音接口");
+    const refs = [...src.matchAll(/\s(?:src|href)\s*=\s*"([^"]*)"/g)].map((m) => m[1]);
+    for (const r of refs) {
+      assert.ok(!/^(https?:)?\/\//i.test(r), f + " 不应加载外部资源：" + r);
+    }
   }
 
   const ctx = boot("cet4");

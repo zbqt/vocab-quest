@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>词库浏览</title>
+<meta name="theme-color" content="#5b6cff">
+<meta name="description" content="Vocab Quest 词库：初中/高中/四级/六级全部词条，带音标，点一下就朗读。">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vocab Quest">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh}
@@ -146,6 +155,12 @@ search.addEventListener("input",()=>{
   else tip.style.display="none";
   emptyTip.style.display=kw&&hits===0?"block":"none";
 });
+</script>
+<script>
+/* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */
+if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+  addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{});});
+}
 </script>
 </body>
 </html>

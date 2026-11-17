@@ -4,6 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>单词学习中心</title>
+<meta name="theme-color" content="#5b6cff">
+<meta name="description" content="Vocab Quest：把背单词做成能算清账的事。初中/高中/四级/六级四套词库，FSRS 排复习，离线可用。">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vocab Quest">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vocab Quest">
+<meta property="og:title" content="Vocab Quest · 单词闯关">
+<meta property="og:description" content="今天该背几个、哪些词会忘，都算得清。四套词库 + FSRS 复习调度，点开就用，离线也能背。">
+<meta property="og:image" content="https://zbqt.github.io/vocab-quest/icons/icon-512.png">
+<meta name="twitter:card" content="summary">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;display:flex;flex-direction:column}
@@ -92,6 +108,12 @@ Object.keys(COUNTS).forEach(k=>{
 });
 document.getElementById("totalWords").textContent=total.toLocaleString();
 document.getElementById("uniqWords").textContent=uniq.size.toLocaleString();
+</script>
+<script>
+/* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */
+if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+  addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{});});
+}
 </script>
 </body>
 </html>

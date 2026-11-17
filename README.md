@@ -25,6 +25,7 @@
 - **3 分钟定级** —— 抽题估算分段掌握率，决定新词从哪一段开始学（不砍词，只排先后）
 - **「这词我会」** —— 不判对错，直接推到 60 天后抽查，误点也不会漏词
 - **存档导出 / 导入** —— 一个 JSON 文件，换浏览器、换设备都能带走
+- **装到桌面** —— 带 manifest 和 Service Worker，加进手机主屏就是一个全屏应用，断网也能接着背
 
 ## 快速开始
 
@@ -60,8 +61,11 @@ engine.js       记忆逻辑层：存档模型、星级、长期掌握、错词�
 fsrs.js         FSRS-5 调度算法（手写，零依赖）
 grammar.js      语法题库
 vocab*.js       四套词库
+sw.js           离线缓存（页面网络优先，静态资源缓存优先）
+manifest.webmanifest  PWA 清单
+icons/          图标（tools/gen-icon.mjs 生成，零依赖）
 test/           node:test 用例
-tools/          词库维护脚本（补音标、体检）
+tools/          词库维护脚本（补音标、体检、生成图标）
 ```
 
 `engine.js` 和 `fsrs.js` 都是 UMD：浏览器里挂 `window.VQEngine / VQFSRS`，Node 里 `import` 直接用，所以逻辑能脱离页面单独测。
@@ -72,6 +76,15 @@ tools/          词库维护脚本（补音标、体检）
 - 公开前做过一次清洗：缺音标 208 条已补齐（148 条取自 [dictionaryapi.dev](https://dictionaryapi.dev/)，60 条人工校订）；3 个拼错的词头已修正（`reservior → reservoir`、`Rusia → Russia`、`behavious → behaviour`）。
 - 清洗脚本在 `tools/`：`audit.mjs`（体检缺音标/释义异常/重复）、`fill-phonetic.mjs`（补音标，结果固化进 js，运行时零请求）。
 - 释义保留了原始词书的多义项内容（含少量人名、地名义项），未做人工精简。
+
+## 装到手机桌面（推荐用法）
+
+装好之后是：**点图标 → 点「今天 N 词」**，两次点击开始，没有地址栏，飞机上也能背。
+
+- **iPhone / iPad**：Safari 打开线上地址 → 底部「分享」→「添加到主屏幕」
+- **Android**：Chrome 打开 → 右上角 ⋮ →「添加到主屏幕」/「安装应用」
+
+首次打开会把页面和词库缓存到本地（约 900KB），之后断网可用；发布新版时改 `sw.js` 里的 `VERSION`，旧缓存自动清掉。
 
 ## 发音
 
