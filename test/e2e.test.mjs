@@ -9,7 +9,7 @@ const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (f) => fs.readFileSync(path.join(DIR, f), "utf8");
 const HTML = read("game.html");
 const INLINE = HTML.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
-const DATA_FILES = ["vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "fsrs.js", "engine.js"];
+const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "fsrs.js", "engine.js"];
 
 function boot(cat = "cet4") {
   const dom = new JSDOM(HTML, {
@@ -27,7 +27,7 @@ function boot(cat = "cet4") {
     pause() { this.paused = true; }
   };
   win.speechSynthesis = { cancel() {}, speak() {} };
-  win.SpeechSynthesisUtterance = class {};
+  win.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
   win.confirm = () => true;
 
   // 必须一次性 eval：`const VOCAB_CZ` 这类顶层常量在多次 eval 之间不共享
@@ -188,7 +188,7 @@ test("旧版存档：首次打开自动迁移，虚高的掌握数归零", () =>
   const win = dom.window;
   win.Audio = class { play() { return Promise.resolve(); } pause() {} };
   win.speechSynthesis = { cancel() {}, speak() {} };
-  win.SpeechSynthesisUtterance = class {};
+  win.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
 
   // 构造一份旧版存档：有 masteredWords / rescue，没有 words
   const old = {
@@ -320,8 +320,10 @@ test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮�
   let audioMade = 0, spoken = [];
   ctx.win.Audio = class { constructor() { audioMade++; } play() { return Promise.resolve(); } pause() {} };
   ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
     cancel() {},
-    speak(u) { spoken.push(u); if (u.onend) u.onend(); }
+    getVoices() { return []; },
+    speak(u) { spoken.push(u); if (u.onstart) u.onstart(); if (u.onend) u.onend(); }
   };
 
   ctx.win.showAudio("abandon", "ə'bændən");
@@ -344,6 +346,117 @@ test("没有语音引擎的浏览器：发音不抛错，按钮可重试", () =>
   ctx.win.showAudio("abandon", "");
   assert.doesNotThrow(() => ctx.win.playWord("abandon"));
   assert.equal(ctx.$("playBtn").textContent, "🔊 重试");
-  assert.ok(ctx.$("audioStatus").textContent.includes("语音引擎"));
+  assert.ok(ctx.$("audioStatus").textContent.includes("不支持"), "应说明浏览器不支持：" + ctx.$("audioStatus").textContent);
+  assert.equal(ctx.$("playBtn").disabled, false);
+});
+
+test("正在朗读时点下一个词：先 cancel 再重发，新词不会被吞掉", async () => {
+  const ctx = boot("cet4");
+  const spoken = [], calls = [];
+  let speaking = false;
+  ctx.win.speechSynthesis = {
+    get speaking() { return speaking; },
+    pending: false,
+    paused: false,
+    getVoices() { return []; },
+    cancel() { calls.push("cancel"); speaking = false; },
+    speak(u) { calls.push("speak"); spoken.push(u.text); speaking = true; }
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon");
+  assert.deepEqual(spoken, ["abandon"], "空闲时第一次直接发声");
+
+  ctx.win.playWord("ability"); // 还在读的时候点第二个词
+  assert.equal(calls[calls.length - 1], "cancel", "应先取消上一次");
+
+  await new Promise((r) => setTimeout(r, 30)); // cancel 是异步的，要让出一轮事件循环
+  assert.deepEqual(spoken, ["abandon", "ability"], "取消后新词仍要发声");
+  assert.ok(calls.lastIndexOf("cancel") < calls.lastIndexOf("speak"), "顺序必须是 cancel → speak");
+});
+
+test("有多个音色时优先选 en-US 本地音色", () => {
+  const ctx = boot("cet4");
+  const picked = [];
+  ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
+    cancel() {},
+    getVoices() {
+      return [
+        { name: "Ting-Ting", lang: "zh-CN", localService: true },
+        { name: "Daniel", lang: "en-GB", localService: true },
+        { name: "Samantha", lang: "en-US", localService: true },
+        { name: "Google US English", lang: "en_US", localService: false }
+      ];
+    },
+    speak(u) { picked.push(u); if (u.onstart) u.onstart(); if (u.onend) u.onend(); }
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon");
+
+  assert.equal(picked.length, 1);
+  assert.ok(picked[0].voice, "应显式指定 voice，安卓上不指定常静默失败");
+  assert.equal(picked[0].voice.name, "Samantha", "应选中本地 en-US 音色");
+  assert.equal(picked[0].lang, "en-US");
+});
+
+test("引擎不派发 onstart 但在真的说话：不重试、不会播两遍", async () => {
+  const ctx = boot("cet4");
+  const spoken = [];
+  let speaking = false;
+  ctx.win.speechSynthesis = {
+    get speaking() { return speaking; },
+    pending: false,
+    paused: false,
+    cancel() { speaking = false; },
+    getVoices() { return []; },
+    speak(u) { spoken.push(u.text); speaking = true; } // 故意不调 onstart
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon");
+
+  await new Promise((r) => setTimeout(r, 700)); // 越过 600ms 的 watchdog
+  assert.deepEqual(spoken, ["abandon"], "已经在说话就不该重试");
+});
+
+test("语音引擎 speak 抛异常：不崩，按钮回到可重试", () => {
+  const ctx = boot("cet4");
+  ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
+    cancel() {},
+    getVoices() { return []; },
+    speak() { throw new Error("engine boom"); }
+  };
+  ctx.win.showAudio("abandon", "");
+  assert.doesNotThrow(() => ctx.win.playWord("abandon"));
+  assert.equal(ctx.$("playBtn").textContent, "🔊 重试");
+  assert.equal(ctx.$("playBtn").disabled, false);
+});
+
+test("合成被浏览器拦截（not-allowed）时给出可操作提示", () => {
+  const ctx = boot("cet4");
+  ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
+    cancel() {},
+    getVoices() { return []; },
+    speak(u) { if (u.onerror) u.onerror({ error: "not-allowed" }); }
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon");
+  assert.equal(ctx.$("playBtn").textContent, "🔊 重试");
+  assert.ok(ctx.$("audioStatus").textContent.includes("点一下页面"), "要告诉用户怎么解开手势限制：" + ctx.$("audioStatus").textContent);
+});
+
+test("答题后的自动朗读被拦时不打扰用户，喇叭仍可点", () => {
+  const ctx = boot("cet4");
+  ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
+    cancel() {},
+    getVoices() { return []; },
+    speak(u) { if (u.onerror) u.onerror({ error: "not-allowed" }); }
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon", { auto: true });
+  assert.equal(ctx.$("playBtn").textContent, "🔊 播放发音", "自动朗读失败应静默复位");
+  assert.equal(ctx.$("audioStatus").textContent, "", "不该在答题后弹错误");
   assert.equal(ctx.$("playBtn").disabled, false);
 });

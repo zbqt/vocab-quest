@@ -362,6 +362,7 @@ body.shuf .stars{color:#7c3aed}
 
 <div class="toast" id="toast"></div>
 
+<script src="tts.js"></script>
 <script src="vocab_cz.js"></script>
 <script src="vocab_gz.js"></script>
 <script src="vocab.js"></script>
@@ -469,26 +470,19 @@ function renderHearts(){$("hpHearts").textContent=G&&G.mode==="play"?Array(3).fi
 
 /* ================= 发音（浏览器原生 TTS，无外链、离线可用） ================= */
 let audioToken=0;
-// 统一的朗读入口：ok=true 表示正常读完，false 表示浏览器不支持或语音引擎报错
+// 统一朗读入口：细节（cancel/speak 竞态、音色选择、失败判定）都在 tts.js 里
 function speakWord(en,onDone){
-  let done=false;
-  const end=ok=>{if(done)return;done=true;onDone(ok);};
-  try{
-    if(!("speechSynthesis" in window)||typeof SpeechSynthesisUtterance!=="function"){end(false);return;}
-    speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(en);
-    u.lang="en-US";u.rate=0.85;u.pitch=1;
-    u.onend=()=>end(true);
-    u.onerror=()=>end(false);
-    speechSynthesis.speak(u);
-    setTimeout(()=>end(true),8000); // 兜底：个别浏览器不触发 onend，避免按钮卡在「播放中」
-  }catch(e){end(false);}
+  const done=onDone||function(){};
+  if(!window.VQSpeech){done(false,"unsupported");return;}
+  VQSpeech.speak(en,{onDone:done});
 }
 function preloadWord(en){
   if(!en)return;
-  try{if("speechSynthesis" in window&&speechSynthesis.getVoices().length===0)speechSynthesis.getVoices();}catch(e){}
+  // 提前把英文音色挑出来；部分安卓要等 voices 加载完才肯出声
+  if(window.VQSpeech){try{VQSpeech.pickVoice();}catch(e){}}
 }
-function playWord(en){
+function playWord(en,opts){
+  opts=opts||{};
   const my=++audioToken;
   const setState=(label,status,playing)=>{
     if(my!==audioToken)return;
@@ -498,9 +492,13 @@ function playWord(en){
   };
   if(!en){setState("🔊 播放发音","该词暂无发音",false);return;}
   setState("⏳ 播放中…","播放中…",true);
-  speakWord(en,ok=>{
+  speakWord(en,(ok,reason)=>{
     if(my!==audioToken)return;
-    setState(ok?"🔊 重新播放":"🔊 重试",ok?"":"这台设备的语音引擎不可用，可换个浏览器试试",false);
+    if(ok){setState("🔊 重新播放","",false);return;}
+    // 答题后自动朗读不在用户手势里，iOS 会以 not-allowed 拦下；这种不打扰用户，喇叭仍可点
+    if(opts.auto&&reason==="not-allowed"){setState("🔊 播放发音","",false);return;}
+    const advice=window.VQSpeech?VQSpeech.reasonText(reason):"这台设备的语音引擎不可用，可换个浏览器试试";
+    setState("🔊 重试",advice,false);
   });
 }
 function showAudio(en,ph){
@@ -743,7 +741,7 @@ function pickMatch(btn,val){
   if(q.optDefs)renderOptDefs(q.optDefs,q.answer,val);
   if(q.en){
     showAudio(q.en,q.ph);
-    if(val===q.answer)playWord(q.en);
+    if(val===q.answer)playWord(q.en,{auto:true});
   }else hideAudio();
   recordWordResult(q,val===q.answer,val);
   afterAnswer();
@@ -757,7 +755,7 @@ function pickSpell(val){
   if(ok){
     G.correct++;G.combo++;G.correctWords.push(q.en);
     $("feedback").textContent="✔ 拼写正确！";$("feedback").className="feedback good";
-    showAudio(q.en,q.ph);playWord(q.en);
+    showAudio(q.en,q.ph);playWord(q.en,{auto:true});
   }else{
     onWrong(q.answer);
   }
@@ -948,7 +946,7 @@ function pickPlace(btn,val){
   $("placeFeedback").textContent=ok?"✔ 认识":"✘ 正确答案："+q.answer;
   $("placeFeedback").className="feedback "+(ok?"good":"bad");
   P.answers.push({band:q.band,word:q.en,correct:ok});
-  if(ok)playWord(q.en);
+  if(ok)playWord(q.en,{auto:true});
   $("placeNext").style.display="block";
   $("placeNext").textContent=(P.idx+1>=P.qs.length)?"查看结果 →":"下一题 →";
 }

@@ -57,6 +57,8 @@ details[open] .u-arrow{transform:rotate(90deg)}
   .w-zh{flex:1 1 60%}
   .w-btn{padding:5px 10px}
 }
+.tts-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);max-width:88vw;padding:12px 16px;border-radius:12px;background:rgba(28,32,46,.95);color:#fff;font-size:13px;line-height:1.55;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .28s,transform .28s;z-index:999;pointer-events:none}
+.tts-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -74,6 +76,7 @@ details[open] .u-arrow{transform:rotate(90deg)}
   <div class="units" id="units"></div>
   <div class="empty" id="emptyTip">没有匹配的单词，换个关键词试试</div>
 </div>
+<script src="tts.js"></script>
 <script src="vocab_cz.js"></script>
 <script src="vocab_gz.js"></script>
 <script src="vocab.js"></script>
@@ -99,27 +102,38 @@ if(CFG.game){
   gb.textContent="🎮 进入"+CFG.name+"闯关游戏";
 }
 
-let audioToken=0;
-// 浏览器原生 TTS：不依赖任何外部发音接口，离线也能读
+let audioToken=0, speechToastShown=false;
+// 浏览器原生 TTS：cancel/speak 竞态、音色选择、失败判定都交给 tts.js
 function speakWord(en,onDone){
-  let done=false;
-  const end=ok=>{if(done)return;done=true;onDone(ok);};
-  try{
-    if(!("speechSynthesis" in window)||typeof SpeechSynthesisUtterance!=="function"){end(false);return;}
-    speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(en);
-    u.lang="en-US";u.rate=0.85;u.pitch=1;
-    u.onend=()=>end(true);
-    u.onerror=()=>end(false);
-    speechSynthesis.speak(u);
-    setTimeout(()=>end(true),8000);
-  }catch(e){end(false);}
+  const done=onDone||function(){};
+  if(!window.VQSpeech){done(false,"unsupported");return;}
+  VQSpeech.speak(en,{onDone:done});
+}
+function showSpeechToast(msg){
+  const d=document.createElement("div");
+  d.className="tts-toast";
+  d.textContent=msg;
+  document.body.appendChild(d);
+  requestAnimationFrame(()=>d.classList.add("show"));
+  setTimeout(()=>d.classList.remove("show"),3000);
+  setTimeout(()=>{if(d.parentNode)d.parentNode.removeChild(d);},3600);
+}
+function explainSpeechFailure(reason){
+  if(speechToastShown)return;
+  speechToastShown=true;
+  let msg=window.VQSpeech?VQSpeech.reasonText(reason):"这个浏览器不支持朗读";
+  if(window.VQSpeech&&VQSpeech.isWeChat)msg+="　微信内置浏览器容易没声音，点右上角「在浏览器打开」更稳。";
+  showSpeechToast(msg);
 }
 function playWord(en,btn){
   const my=++audioToken;
-  const reset=()=>{if(my===audioToken){btn.textContent="🔊";btn.classList.remove("playing");}};
   btn.textContent="⏳";btn.classList.add("playing");
-  speakWord(en,()=>{if(my!==audioToken)return;reset();});
+  speakWord(en,(ok,reason)=>{
+    if(my!==audioToken)return;
+    btn.classList.remove("playing");
+    if(ok===false){btn.textContent="🔇";explainSpeechFailure(reason);}
+    else btn.textContent="🔊";
+  });
 }
 
 const unitsBox=document.getElementById("units");
