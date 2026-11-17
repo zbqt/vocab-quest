@@ -607,8 +607,10 @@ function pickMatch(btn,val){
   }
   if(q.tip)$("feedback").textContent+="　📌 "+q.tip;
   if(q.optDefs)renderOptDefs(q.optDefs,q.answer,val);
-  showAudio(q.en,q.ph);
-  if(val===q.answer)playWord(q.en);
+  if(q.en){
+    showAudio(q.en,q.ph);
+    if(val===q.answer)playWord(q.en);
+  }else hideAudio();
   recordWordResult(q,val===q.answer,val);
   afterAnswer();
 }
@@ -708,7 +710,23 @@ $("backHome").onclick=()=>{
   goHome();
 };
 $("resHome").onclick=goHome;
-$("resAgain").onclick=()=>{$("overlay").classList.remove("show");start(G.u,G.l,G.mode);};
+$("resAgain").onclick=()=>{
+  $("overlay").classList.remove("show");
+  if(G&&G.daily&&G.src&&G.src.length)openDaily(G.src);
+  else start(G.u,G.l,G.mode);
+};
+function openDaily(words){
+  const sess=VQ.buildSession({words:shuffle(words.slice()),grammar:[],grammarN:0,spellEvery:3,mode:"review",pool:BANK});
+  G={
+    u:1,l:0,mode:"review",daily:true,shuf:false,src:words.slice(),
+    qs:sess.questions,passNeed:sess.passNeed,
+    idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
+    combo:0,correctWords:[],wrongList:[]
+  };
+  $("modeTag").textContent="复习队列";$("modeTag").className="mode-tag review";
+  $("levelTitle").textContent="今日到期 "+sess.total+" 词";
+  show("gameView");renderQ();
+}
 $("reviewBtn").onclick=()=>{
   if(S.lastReviewDate===todayStr())return;
   const due=VQ.dueList(S,todayStr(),20);
@@ -717,17 +735,8 @@ $("reviewBtn").onclick=()=>{
   Object.keys(POOLS).forEach(u=>POOLS[u].forEach(w=>{if(!wordIndex[w[0]])wordIndex[w[0]]={w,u:+u};}));
   const words=due.map(it=>wordIndex[it.word]).filter(Boolean).map(it=>it.w);
   if(!words.length){toast("到期词不在当前词库中，请切换对应阶段");return;}
-  const sess=VQ.buildSession({words:shuffle(words),grammar:[],grammarN:0,spellEvery:3,mode:"review",pool:BANK});
-  G={
-    u:1,l:0,mode:"review",daily:true,shuf:false,
-    qs:sess.questions,passNeed:sess.passNeed,
-    idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
-    combo:0,correctWords:[],wrongList:[]
-  };
-  $("modeTag").textContent="复习队列";$("modeTag").className="mode-tag review";
-  $("levelTitle").textContent="今日到期 "+sess.total+" 词";
-  $("gameHint").textContent=`含错词 ${due.filter(x=>x.rescue).length} 个 · 答对 ${sess.passNeed} 题完成，不扣体力`;
-  show("gameView");renderQ();
+  openDaily(words);
+  $("gameHint").textContent=`含错词 ${due.filter(x=>x.rescue).length} 个 · 答对 ${G.passNeed} 题完成，不扣体力`;
 };
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&$("overlay").classList.contains("show")&&G&&G.finished)goHome();
