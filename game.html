@@ -562,13 +562,13 @@ function todayStat(){
 function renderWeek(){
   const days=[],now=new Date();
   for(let i=6;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()-i);days.push(VQ.dayKey(d));}
-  const stat={};days.forEach(d=>{stat[d]={n:0,ok:0};});
+  const stat={};days.forEach(d=>{stat[d]={n:0,ok:0,ans:0};});
   (S.events||[]).forEach(e=>{
     if(!e||!e.ts||e.type==="session_end")return;
     const k=VQ.dayKey(new Date(e.ts));
     if(!stat[k])return;
-    stat[k].n++;
-    if(e.correct)stat[k].ok++;
+    stat[k].n++;                                  // 题数含「这词我会」的跳过
+    if(e.type!=="skip"){stat[k].ans++;if(e.correct)stat[k].ok++;}  // 正确率只算真答的
   });
   const max=Math.max(1,...days.map(d=>stat[d].n));
   const LABEL=["日","一","二","三","四","五","六"];
@@ -579,10 +579,11 @@ function renderWeek(){
     return `<div class="wb${d===today?" wb-today":""}"><div class="wb-bar${s.n?" on":""}" style="height:${h}%" title="${d} · ${s.n} 题"></div><span class="wb-n">${d===today?"今天":LABEL[dow]}</span></div>`;
   }).join("");
   const tot=days.reduce((n,d)=>n+stat[d].n,0);
+  const ans=days.reduce((n,d)=>n+stat[d].ans,0);
   const ok=days.reduce((n,d)=>n+stat[d].ok,0);
   const active=days.filter(d=>stat[d].n>0).length;
   $("weekMeta").textContent=tot
-    ?`${active} 天有学 · ${tot} 题 · 正确率 ${Math.round(ok/tot*100)}%`
+    ?`${active} 天有学 · ${tot} 题`+(ans?` · 正确率 ${Math.round(ok/ans*100)}%`:"")
     :"最近 7 天还没有记录";
 }
 function renderHome(){

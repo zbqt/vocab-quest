@@ -592,3 +592,17 @@ test("键盘：数字键选选项、回车进下一题、已答后数字键不�
   fire("Enter");
   assert.equal(ctx.api.getG().idx, 1, "回车应进入下一题");
 });
+
+test("周视图：点「这词我会」的跳过算题数，但不拉低正确率", () => {
+  const ctx = boot("cet4");
+  const S = ctx.api.getS();
+  S.events.length = 0;
+  const now = Date.now();
+  S.events.push({ ts: now, type: "match", word: "abandon", correct: 1 });
+  S.events.push({ ts: now, type: "match", word: "ability", correct: 0 });
+  S.events.push({ ts: now, type: "skip", word: "able" });
+  ctx.win.renderHome();
+  const meta = ctx.$("weekMeta").textContent;
+  assert.match(meta, /3 题/, "跳过也进题数");
+  assert.match(meta, /正确率 50%/, "只在真答的两题里算：1/2");
+});
