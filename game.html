@@ -175,12 +175,14 @@ body.shuf .stars{color:#7c3aed}
 .place-enemy{text-align:center;padding:26px 16px;border-radius:14px;background:linear-gradient(160deg,#f5f7ff,#eef2ff);border:2px dashed #ccd6ff;margin-bottom:8px}
 .place-enemy .enemy-word{font-size:34px;color:#3346b8}
 .place-band{font-size:10px;color:#8b93b8;font-weight:700;letter-spacing:.4px}
-.place-bands{display:grid;gap:5px;margin:14px 0 6px;text-align:left}
+.place-bands{display:grid;gap:6px;margin:14px 0 10px;text-align:left}
 .place-band-row{display:grid;grid-template-columns:52px 1fr 40px;align-items:center;gap:8px;font-size:11px;color:#6b7280}
-.place-band-track{height:6px;background:#eef1f6;border-radius:999px;overflow:hidden}
-.place-band-fill{height:100%;background:#6c7bff;border-radius:999px}
+.place-band-track{height:7px;background:#eef1f6;border-radius:999px;overflow:hidden}
+.place-band-fill{height:100%;background:#6c7bff;border-radius:999px;transition:.3s}
+/* 颜色跟着「该不该学」走：红=最该补，橙=半熟，灰蓝=基本会了 */
+.place-band-row.hot .place-band-fill{background:#ef4444}
 .place-band-row.warm .place-band-fill{background:#f59e0b}
-.place-band-row.hot .place-band-fill{background:#22c55e}
+.place-band-row.good .place-band-fill{background:#c3cde6}
 </style>
 </head>
 <body>
@@ -977,10 +979,10 @@ function finishPlacement(){
   $("prSub").textContent="题库共 "+res.size.toLocaleString()+" 词 · 答对 "+res.correct+"/"+res.asked+" 题（已扣掉四选一蒙对的概率）";
   $("prBands").innerHTML=res.bands.map(b=>{
     const pct=Math.round(b.trueRate*100);
-    const cls=b.trueRate>=0.7?"hot":(b.trueRate>=0.35?"warm":"");
+    const cls=b.trueRate>=0.7?"good":(b.trueRate>=0.35?"warm":"hot");
     return `<div class="place-band-row ${cls}"><span>第 ${b.band} 段</span><div class="place-band-track"><div class="place-band-fill" style="width:${pct}%"></div></div><span style="text-align:right">${pct}%</span></div>`;
   }).join("");
-  $("prFoot").textContent="答对的 "+res.known.length+" 个词先跳过，60 天后抽查一次；掌握率最低的那一段会优先排进每日队列。";
+  $("prFoot").innerHTML="<b style='color:#ef4444'>红色</b>是最该补的部分，会优先排进每日队列。<br>答对的 "+res.known.length+" 个词先跳过，60 天后抽查一次，答错就回到队列。";
   P=null;
 }
 $("placeBtn").onclick=startPlacement;
