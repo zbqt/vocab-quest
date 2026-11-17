@@ -544,3 +544,51 @@ test("错词重练：没有错词时不出现，有错词后可一键开练", ()
   assert.equal(ctx.$("modeTag").textContent, "错词重练");
   assert.ok(ctx.$("gameView").classList.contains("active"));
 });
+
+test("近 7 天：7 根柱、今天在最右，数据来自本地事件日志", () => {
+  const ctx = boot("cet4");
+  const S = ctx.api.getS();
+  S.events.length = 0;
+  const push = (dayAgo, n) => {
+    const d = new Date();
+    d.setDate(d.getDate() - dayAgo);
+    for (let i = 0; i < n; i++) S.events.push({ ts: d.getTime(), type: "match", word: "abandon", correct: i % 2 === 0 ? 1 : 0 });
+  };
+  push(0, 6);
+  push(2, 4);
+  ctx.win.renderHome();
+
+  const bars = ctx.doc.querySelectorAll("#weekBars .wb");
+  assert.equal(bars.length, 7, "应固定画 7 天");
+  assert.ok(bars[6].classList.contains("wb-today"), "最右一格是今天");
+  assert.match(ctx.$("weekMeta").textContent, /10 题/);
+  assert.match(ctx.$("weekMeta").textContent, /正确率 50%/, "6 题对 3、4 题对 2 → 5/10");
+  assert.match(ctx.$("weekMeta").textContent, /2 天有学/);
+});
+
+test("没有任何记录时，周视图给一句人话而不是空白", () => {
+  const ctx = boot("cet4");
+  ctx.api.getS().events.length = 0;
+  ctx.win.renderHome();
+  assert.equal(ctx.$("weekMeta").textContent, "最近 7 天还没有记录");
+  assert.equal(ctx.doc.querySelectorAll("#weekBars .wb").length, 7);
+});
+
+test("键盘：数字键选选项、回车进下一题、已答后数字键不重复作答", () => {
+  const ctx = boot("cet4");
+  const G = openFirstLevel(ctx);
+  assert.equal(G.qs[G.idx].type, "match", "第一题应是认词四选一");
+  const fire = (key) => ctx.doc.dispatchEvent(new ctx.win.KeyboardEvent("keydown", { key, bubbles: true }));
+
+  fire("2");
+  assert.equal(ctx.api.getG().answered, true, "按数字键应直接作答");
+  const afterFirst = ctx.api.getG();
+  assert.equal(afterFirst.idx, 0, "作答后先停在本题，等用户看解析");
+
+  fire("3"); // 已答状态下再按数字键，不应改判
+  assert.equal(ctx.api.getG().idx, 0);
+  assert.equal(ctx.api.getG().correct + ctx.api.getG().wrong, afterFirst.correct + afterFirst.wrong);
+
+  fire("Enter");
+  assert.equal(ctx.api.getG().idx, 1, "回车应进入下一题");
+});
