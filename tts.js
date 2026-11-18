@@ -478,6 +478,7 @@
 
   function stopDialogue() {
     dlgToken++;
+    killCloud();
     var s = getSynth();
     try { if (s) s.cancel(); } catch (e) {}
     stopAudio();
@@ -588,6 +589,199 @@
     }
   }
 
+  /* ---------- 整句人声（云端） ----------
+   * 设备自带的合成引擎底子太旧，"又平又硬"换断句也救不回来，只能换声源。
+   * 这一路直接播云端合成好的音频，代价是必须联网、而且台词会发给第三方。
+   * 放不出来就退回 speakDialogue（设备合成）—— 两条路都堵住才算真的没声音。
+   *
+   * 连挂两次就别再让它每次卡 7 秒：本次会话直接跳过这一路，但**不改用户偏好**，
+   * 下次打开页面还会重试（网络可能是临时的）。 */
+  var SRC_PREF = "vq_dlg_src";
+  var cloudStrikes = 0;
+  var cloudAudio = null;
+
+  function killCloud() {
+    var a = cloudAudio;
+    cloudAudio = null;
+    if (!a) return;
+    try { a.pause(); } catch (e) {}
+    try { a.removeAttribute("src"); a.load(); } catch (e) {}
+  }
+
+  function getDialogueSource() {
+    var v = null;
+    try { v = global.localStorage && global.localStorage.getItem(SRC_PREF); } catch (e) {}
+    return v === "device" ? "device" : "cloud";
+  }
+
+  function setDialogueSource(src) {
+    var v = src === "device" ? "device" : "cloud";
+    try { global.localStorage.setItem(SRC_PREF, v); } catch (e) {}
+    if (v === "cloud") cloudStrikes = 0;
+    return v;
+  }
+
+  /**
+   * 用云端人声念一句。
+   * @returns {boolean} false = 这一路用不了，调用方应当改走设备合成
+   */
+  function speakCloud(text, opts) {
+    opts = opts || {};
+    var finish = once(function (ok, reason) {
+      if (opts.onDone) opts.onDone(ok, reason || "");
+    });
+    var S = global.VQSentence;
+    if (!S || typeof global.Audio !== "function") { finish(false, "unsupported"); return false; }
+    if (cloudStrikes >= 2) { finish(false, "cloud-unavailable"); return false; }
+
+    var str = String(text == null ? "" : text).trim();
+    var plan = S.cues(str, { speaker: opts.speaker });
+    if (!plan.length) { finish(false, "empty"); return false; }
+
+    var token = ++dlgToken;
+    var rate = typeof opts.speed === "number" && opts.speed > 0 ? opts.speed : 1;
+    // 两句抢着说话比一句听不清更糟：先把设备合成和单词录音都停掉
+    try { var synth = getSynth(); if (synth) synth.cancel(); } catch (e) {}
+    stopAudio();
+
+    var i = 0, settled = false;
+    step();
+    return true;
+
+    function bail(reason) {
+      if (settled) return;
+      settled = true;
+      killCloud();
+      cloudStrikes++;
+      finish(false, reason);
+    }
+
+    function step() {
+      if (token !== dlgToken || settled) return;
+      if (i >= plan.length) { settled = true; killCloud(); finish(true); return; }
+
+      var cue = plan[i];
+      // 预取过就直接播那一个：否则同一句会被请求两次，而且点下去还得再等一轮网络
+      var a = takePrefetched(cue.url);
+      if (!a) {
+        try { a = new global.Audio(cue.url); } catch (e) { bail("unsupported"); return; }
+        a.preload = "auto";
+      }
+      cloudAudio = a;
+      // 只改速度、不改音高。整句拉伸比单词拉伸宽容得多，但超过 0.85 也开始发糊
+      try { a.playbackRate = rate; a.preservesPitch = true; } catch (e) {}
+      if (opts.onSegment) { try { opts.onSegment(i, plan.length); } catch (e) {} }
+
+      var done = false, started = false;
+      // 预算 = 加载余量 + 播放时长。只算加载的话，句子一长就会被自己的看门狗切断
+      // （英文朗读约 14 字符/秒，这里按 9 字符/秒估，留足余量当作安全网）
+      var budget = 3000 + Math.round(cue.text.length / 9 * 1000) + (i === 0 ? 4000 : 0);
+      var watch = setTimeout(function () {
+        if (done) return;
+        done = true;
+        if (started) { next(); return; }
+        bail(token === dlgToken ? "timeout" : "interrupted");
+      }, budget);
+      if (watch && typeof watch.unref === "function") watch.unref();
+
+      a.addEventListener("playing", function () {
+        if (started) return;
+        started = true;
+        if (i === 0 && opts.onStart) { try { opts.onStart(); } catch (e) {} }
+      });
+      a.addEventListener("ended", function () {
+        if (done) return;
+        done = true;
+        clearTimeout(watch);
+        next();
+      });
+      // 有的环境（旧 Safari、部分安卓 WebView）不派发 ended，只派发 timeupdate。
+      // 光靠看门狗兜底会让"正在播"一直挂着，所以播到尾巴就自己收。
+      a.addEventListener("timeupdate", function () {
+        if (done) return;
+        var d = 0, c = 0;
+        try { d = a.duration || 0; c = a.currentTime || 0; } catch (e) {}
+        if (!d || c < d - 0.2) return;
+        done = true;
+        clearTimeout(watch);
+        next();
+      });
+      a.addEventListener("error", function () {
+        if (done) return;
+        done = true;
+        clearTimeout(watch);
+        // 已经出过声才断的，当这一段读完，别让整句哑掉
+        if (started) { next(); return; }
+        bail("blocked");
+      });
+
+      var p;
+      try { p = a.play(); } catch (e) { bail("blocked"); return; }
+      if (p && typeof p.catch === "function") {
+        p.catch(function (err) {
+          if (done) return;
+          done = true;
+          clearTimeout(watch);
+          // NotAllowedError 是"缺一次点击"，不是设备不行，不该算到云端头上
+          bail(err && err.name === "NotAllowedError" ? "not-allowed" : "blocked");
+        });
+      }
+    }
+
+    function next() {
+      if (token !== dlgToken || settled) return;
+      var gap = plan[i].gap || 0;
+      i++;
+      if (gap) setTimeout(step, gap);
+      else step();
+    }
+  }
+
+  /* 预取整句音频：切到某一句就先把声音取下来。
+   * 实测首次点播要等近 2 秒（请求 + 解码），预取之后基本是立刻出声 ——
+   * 听写本来就要反复听同一句，这 2 秒会重复很多次。 */
+  var prefetchCache = {}, prefetchKeys = [];
+
+  // 取用预取好的元素：取走就删，一次预取只服务一次播放
+  function takePrefetched(u) {
+    var a = prefetchCache[u];
+    if (!a) return null;
+    delete prefetchCache[u];
+    var ix = prefetchKeys.indexOf(u);
+    if (ix >= 0) prefetchKeys.splice(ix, 1);
+    try { if (a.error) return null; } catch (e) {}   // 预取时就已经坏了的，别拿来播
+    try { a.muted = false; } catch (e) {}            // 预取是静音下载，播之前必须放开
+    try { if (a.currentTime) a.currentTime = 0; } catch (e) {}
+    return a;
+  }
+
+  function prefetchCloud(text, opts) {
+    if (getDialogueSource() !== "cloud") return false;
+    var S = global.VQSentence;
+    if (!S || typeof global.Audio !== "function") return false;
+    var cues = S.cues(text == null ? "" : text, { speaker: (opts || {}).speaker });
+    var got = false;
+    for (var i = 0; i < cues.length; i++) {
+      var u = cues[i].url;
+      if (prefetchCache[u]) continue;
+      try {
+        var a = new global.Audio(u);
+        a.preload = "auto";
+        a.muted = true;              // 只下载，不出声
+        if (a.load) a.load();
+        prefetchCache[u] = a;
+        prefetchKeys.push(u);
+        got = true;
+      } catch (e) {}
+    }
+    // 别让缓存无限长：只留最近 24 条地址
+    while (prefetchKeys.length > 24) {
+      var old = prefetchKeys.shift();
+      try { delete prefetchCache[old]; } catch (e) {}
+    }
+    return got;
+  }
+
   // 试听某个音色（换声音面板用）：单段、原速，不套任何语气
   function previewVoice(name, text) {
     var s = getSynth();
@@ -677,7 +871,10 @@
     speak: speak,
     speakSentence: speakSentence,
     speakDialogue: speakDialogue,
+    speakCloud: speakCloud,
     stopDialogue: stopDialogue,
+    getDialogueSource: getDialogueSource,
+    setDialogueSource: setDialogueSource,
     previewVoice: previewVoice,
     dialogueVoices: dialogueVoices,
     setDialogueVoice: setDialogueVoice,
@@ -688,6 +885,7 @@
     pickVoice: pickVoice,
     voices: VOICES.map(function (v) { return { id: v.id, name: v.name }; }),
     prefetch: prefetch,
+    prefetchCloud: prefetchCloud,
     setVoice: setPref,
     get voice() { return pref(); },
     get voiceName() { return prefName(); },

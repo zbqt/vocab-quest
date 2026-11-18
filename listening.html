@@ -2,6 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<!-- 云端人声接口对带 Referer 的请求返回 0 字节（防盗链）。referrerpolicy 不是 <audio>
+     的合法属性，只能靠文档级策略把 Referer 整个去掉，否则音频一律 code 4。 -->
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>长对话听写 · 单词闯关</title>
 <meta name="theme-color" content="#5b6cff">
@@ -149,8 +152,8 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div id="dlgList"></div>
 
     <p class="intro" style="text-align:center;margin-top:14px;color:#a3a9ba">
-      整句朗读用手机自带语音引擎，靠断句、停顿、语气做得像真人在说话。<br>
-      音色好坏取决于你的手机，嫌不够自然就点「🎙 换声音」挑一个。
+      整句默认用云端人声朗读，声线接近真人，需要联网。<br>
+      没网、或不想把句子发出去，练习时点「🌐 人声」切成设备语音，离线也能用。
     </p>
   </div>
 
@@ -174,6 +177,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
       <div class="tools">
         <button class="tool" id="slowBtn">🐢 正常语速</button>
         <button class="tool" id="hintBtn">💡 看中文提示</button>
+        <button class="tool" id="srcBtn">🌐 人声</button>
         <button class="tool" id="voiceBtn">🎙 换声音</button>
       </div>
       <div class="hint" id="hintBox"></div>
@@ -221,6 +225,13 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 <div class="toast" id="toast"></div>
 
 <div class="sheet-mask" id="mask"></div>
+<div class="sheet" id="srcSheet">
+  <h3>用哪种声音读</h3>
+  <p>同一句话，两条路差别很大。</p>
+  <div id="srcList"></div>
+  <button class="tool" id="srcClose" style="width:100%;margin-top:4px">收起</button>
+</div>
+
 <div class="sheet" id="voiceSheet">
   <h3>换一个声音</h3>
   <p>同一句话，不同手机自带的声音差别很大。排在前面的是这台设备上最自然的英文音色，点一下先试听。</p>
@@ -229,6 +240,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 </div>
 
 <script src="prosody.js"></script>
+<script src="sentence-audio.js"></script>
 <script src="tts.js"></script>
 <script src="dictation.js"></script>
 <script src="dialogues.js"></script>
@@ -251,6 +263,7 @@ const PREF="vq_dict_slow";
 let slow=false;
 try{slow=localStorage.getItem(PREF)==="1";}catch(e){}
 const RATE_NORMAL=1, RATE_SLOW=0.8;   // 正常速才是自然速；慢速只作为听不清时的拐杖
+const RATE_MP3_SLOW=0.86;             // 真实录音拉伸超过这个幅度就开始发糊，比合成更敏感
 
 /* ================= 列表 ================= */
 const LV_TEXT={1:"日常",2:"校园生活",3:"进阶"};
@@ -311,8 +324,11 @@ function renderLine(){
   $("playBig").appendChild(sm);
   $("playBig").classList.remove("playing");
   paintWho(L);
+  paintSrc();
   paintDots(L);
   paintSlow();
+  // 先把这一句的声音取下来：听写要反复听同一句，2 秒的等待会被放大很多次
+  if(window.VQSpeech&&VQSpeech.prefetchCloud)VQSpeech.prefetchCloud(L.en,{speaker:L.sp});
   setTimeout(()=>{ if($("ansInput").disabled===false) $("ansInput").focus(); },80);
 }
 
@@ -328,7 +344,11 @@ function paintWho(L){
    只露节奏、不露词，所以不算泄题，但能让人跟得上句子走到哪了。 */
 function paintDots(L){
   const box=$("dots");box.innerHTML="";
-  const plan=window.VQProsody?VQProsody.planLine(L.en,{speaker:L.sp,speed:slow?RATE_SLOW:RATE_NORMAL}):null;
+  // 云端人声是整句一次取、一次播，没有人工气口可数，只留一个点表示"正在播"；
+  // 设备合成是我们自己按气口切段念的，才有几个点可亮。
+  const plan=(sourceNow()!=="cloud"&&window.VQProsody)
+    ? VQProsody.planLine(L.en,{speaker:L.sp,speed:slow?RATE_SLOW:RATE_NORMAL})
+    : null;
   const n=plan?plan.segments.length:1;
   for(let i=0;i<n;i++){
     const d=document.createElement("span");
@@ -346,31 +366,76 @@ function paintSlow(){
   $("slowBtn").classList.toggle("on",slow);
 }
 
+/* ================= 声音来源 ================= */
+function sourceNow(){
+  return (window.VQSpeech&&VQSpeech.getDialogueSource)?VQSpeech.getDialogueSource():"device";
+}
+function paintSrc(){
+  const src=sourceNow();
+  const b=$("srcBtn");
+  b.textContent=src==="cloud"?"🌐 人声":"📱 设备语音";
+  b.classList.toggle("on",src==="cloud");
+  // 「换声音」只对设备合成有意义：云端只有一条英文声线，换不了
+  $("voiceBtn").style.display=src==="cloud"?"none":"";
+}
+
 /* ================= 播放 ================= */
 function playLine(){
   if(!D)return;
   if(playing){stopPlay();return;}
   const L=D.lines[idx];
-  if(!window.VQSpeech||typeof VQSpeech.speakDialogue!=="function"){
-    $("noVoice").classList.add("show");
-    return;
-  }
+  if(!window.VQSpeech){$("noVoice").classList.add("show");return;}
+  beginLine(L,sourceNow(),false);
+}
+
+/* 两条通道：云端人声优先，取不到就当场换设备合成 —— 不让用户为了听一句点两次。
+   云端失败常见于：没网、接口被拦、句子太长被截。这三种都不该变成"没声音"。 */
+function beginLine(L,src,retried){
   playing=true;
   $("playBig").classList.add("playing");
-  $("playBig").textContent="⏹ 正在播…（点一下停）";
-  VQSpeech.speakDialogue(L.en,{
+  $("playBig").textContent=src==="cloud"?"⏳ 正在取人声…":"⏹ 正在播…（点一下停）";
+  $("noVoice").classList.remove("show");
+
+  const device=()=>{
+    if(typeof VQSpeech.speakDialogue!=="function"){endLine(false,"unsupported");return;}
+    VQSpeech.speakDialogue(L.en,{
+      speaker:L.sp,
+      speed:slow?RATE_SLOW:RATE_NORMAL,
+      onSegment:i=>lightDots(i),
+      onDone:(ok,reason)=>endLine(ok,reason)
+    });
+  };
+
+  if(src!=="cloud"||typeof VQSpeech.speakCloud!=="function"){device();return;}
+
+  let settled=false;
+  const started=VQSpeech.speakCloud(L.en,{
     speaker:L.sp,
-    speed:slow?RATE_SLOW:RATE_NORMAL,
+    speed:slow?RATE_MP3_SLOW:RATE_NORMAL,
     onSegment:i=>lightDots(i),
     onDone:(ok,reason)=>{
-      playing=false;
-      clearDots();
-      $("playBig").classList.remove("playing");
-      $("playBig").textContent=ok?"🔊 再听一次":"🔇 没声音，点这里重试";
-      if(!ok&&reason!=="interrupted")$("noVoice").classList.add("show");
+      settled=true;
+      // not-allowed 是"缺一次点击"，interrupted 是被新播放顶掉，都不算这条路不行
+      if(!ok&&!retried&&reason!=="not-allowed"&&reason!=="interrupted"){
+        toast("云端人声没取到，改用设备语音");
+        beginLine(L,"device",true);
+        return;
+      }
+      endLine(ok,reason);
     }
   });
+  // speakCloud 返回 false 时 onDone 已经同步报过错了；只是兜个底，防止将来改坏
+  if(!started&&!settled)beginLine(L,"device",true);
 }
+
+function endLine(ok,reason){
+  playing=false;
+  clearDots();
+  $("playBig").classList.remove("playing");
+  $("playBig").textContent=ok?"🔊 再听一次":"🔇 没声音，点这里重试";
+  if(!ok&&reason!=="interrupted")$("noVoice").classList.add("show");
+}
+
 function stopPlay(){
   playing=false;
   clearDots();
@@ -414,6 +479,35 @@ function openSheet(){
 function closeSheet(){
   $("mask").classList.remove("show");
   $("voiceSheet").classList.remove("show");
+  $("srcSheet").classList.remove("show");
+}
+
+/* 声音来源面板：这是唯一一个"用体验换自然度"的选择，必须把代价写在按钮旁边，
+   不能只在文档里说一句就让人默认把句子发出去。 */
+function openSrcSheet(){
+  const box=$("srcList");box.innerHTML="";
+  const cur=sourceNow();
+  const items=[
+    {id:"cloud",name:"🌐 云端人声",desc:"合成好的整句音频，声线接近真人。要联网，台词会发到第三方服务。"},
+    {id:"device",name:"📱 设备语音",desc:"手机自带的合成引擎。不联网、句子不外发，但声音偏机械。"}
+  ];
+  items.forEach(it=>{
+    const row=document.createElement("div");
+    row.className="vrow"+(it.id===cur?" sel":"");
+    row.innerHTML=`<span class="vname" style="white-space:normal;line-height:1.45">${it.name}`
+      +`<br><span style="font-size:11px;color:#8a91a5;font-weight:500">${it.desc}</span></span>`;
+    row.onclick=()=>{
+      if(VQSpeech.setDialogueSource)VQSpeech.setDialogueSource(it.id);
+      paintSrc();
+      if(D&&D.lines)paintDots(D.lines[idx]);
+      closeSheet();
+      toast(it.id==="cloud"?"已切到云端人声":"已切到设备语音");
+      playLine();
+    };
+    box.appendChild(row);
+  });
+  $("mask").classList.add("show");
+  $("srcSheet").classList.add("show");
 }
 
 /* ================= 判分 ================= */
@@ -486,6 +580,8 @@ $("slowBtn").onclick=()=>{
   playLine();
 };
 $("voiceBtn").onclick=openSheet;
+$("srcBtn").onclick=openSrcSheet;
+$("srcClose").onclick=closeSheet;
 $("sheetClose").onclick=closeSheet;
 $("mask").onclick=closeSheet;
 $("hintBtn").onclick=()=>{

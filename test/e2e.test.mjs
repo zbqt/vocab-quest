@@ -877,6 +877,8 @@ function bootListening(opts) {
   const win = dom.window;
   // 记录每一次真正发出去的朗读，用来检查「是不是按气口分段、有没有语气差别」
   const spoken = [];
+  // 记录每一个被创建出来的 <audio>：云端通道到底请求了什么地址，只能从这里看
+  const audios = [];
   const voices = opts.voices || [
     { name: "Microsoft Aria Online (Natural)", lang: "en-US", localService: false },
     { name: "Google US English", lang: "en-US", localService: true }
@@ -897,16 +899,44 @@ function bootListening(opts) {
     addEventListener() {}
   };
   win.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
-  win.Audio = class { play() { return Promise.resolve(); } pause() {} load() {} };
+  // 云端人声走的是 <audio>，所以要模拟够真：事件、playbackRate、出错的三条路
+  win.Audio = class {
+    constructor(src) {
+      this.src = src || "";
+      this.initSrc = this.src;     // 播完会清空 src，测试要看的是「最初请求了什么」
+      this.paused = true;
+      this.playbackRate = 1;
+      this.preservesPitch = true;
+      this._l = {};
+      audios.push(this);
+    }
+    addEventListener(t, f) { (this._l[t] = this._l[t] || []).push(f); }
+    removeEventListener() {}
+    removeAttribute() { this.src = ""; }
+    load() {}
+    pause() { this.paused = true; }
+    play() {
+      if (opts.audioFail) {
+        setTimeout(() => this._fire("error"), 0);
+        return Promise.reject(Object.assign(new Error("no src"), { name: "NotSupportedError" }));
+      }
+      this.paused = false;
+      setTimeout(() => this._fire("playing"), 0);
+      setTimeout(() => this._fire("ended"), 25);
+      return Promise.resolve();
+    }
+    _fire(t) { (this._l[t] || []).forEach((f) => f({ type: t })); }
+  };
   win.confirm = () => true;
   win.scrollTo = () => {};
-  win.eval(["prosody.js", "tts.js", "dictation.js", "dialogues.js"].map(read).join("\n") + "\n" + L_INLINE +
+  win.eval(["prosody.js", "sentence-audio.js", "tts.js", "dictation.js", "dialogues.js"].map(read).join("\n") + "\n" + L_INLINE +
     "\nwindow.__dlg={getD:()=>D,getIdx:()=>idx,getResults:()=>results,go:(i)=>{idx=i;renderLine();}};");
-  return { dom, win, doc: win.document, spoken, $: (id) => win.document.getElementById(id) };
+  if (opts.source) win.VQSpeech.setDialogueSource(opts.source);
+  return { dom, win, doc: win.document, spoken, audios, $: (id) => win.document.getElementById(id) };
 }
 
 test("长对话听写：列表按题库渲染，点开进第一句", () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   const cards = ctx.doc.querySelectorAll("#dlgList .dlg");
   assert.equal(cards.length, 12, "题库 12 段");
   assert.ok(cards[0].textContent.includes("咖啡店点单"));
@@ -918,7 +948,7 @@ test("长对话听写：列表按题库渲染，点开进第一句", () => {
 });
 
 test("长对话听写：写错时逐词标红，写对时 100% 且判全对", () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   const D = ctx.win.__dlg.getD();
   const line = D.lines[0];
@@ -945,7 +975,7 @@ test("长对话听写：写错时逐词标红，写对时 100% 且判全对", ()
 });
 
 test("长对话听写：走完全部句子进结果页，最好成绩写进 localStorage", () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   const D = ctx.win.__dlg.getD();
 
@@ -966,7 +996,7 @@ test("长对话听写：走完全部句子进结果页，最好成绩写进 loca
 /* ================= 长对话配音：像人说话 ================= */
 
 test("一句里有两句话就分两段念，中间留白，不是一口气连读", async () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   ctx.$("playBig").click();
   await new Promise((r) => setTimeout(r, 500));
@@ -978,7 +1008,7 @@ test("一句里有两句话就分两段念，中间留白，不是一口气连�
 });
 
 test("语速不是一条直线：同一句里两段语速/音高不同，问句尾音更高", async () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   ctx.$("playBig").click();
   await new Promise((r) => setTimeout(r, 500));
@@ -990,7 +1020,7 @@ test("语速不是一条直线：同一句里两段语速/音高不同，问句�
 });
 
 test("A / B 两个人声线不同，而且用的是这台设备上最好的英文音色", async () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
 
   ctx.$("playBig").click();
@@ -1008,7 +1038,7 @@ test("A / B 两个人声线不同，而且用的是这台设备上最好的英�
 });
 
 test("气口圆点数量 = 这句话要念几段，正在念的那段亮起来", async () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   assert.equal(ctx.doc.querySelectorAll("#dots .dot").length, 2, "第一句两句号 = 两个点");
 
@@ -1018,7 +1048,7 @@ test("气口圆点数量 = 这句话要念几段，正在念的那段亮起来",
 });
 
 test("慢速是整句等比放慢，点一下就能切回来", async () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   ctx.$("playBig").click();
   await new Promise((r) => setTimeout(r, 500));
@@ -1033,7 +1063,7 @@ test("慢速是整句等比放慢，点一下就能切回来", async () => {
 });
 
 test("换声音面板会列出英文音色，选完能试听", async () => {
-  const ctx = bootListening();
+  const ctx = bootListening({ source: "device" });
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   ctx.$("voiceBtn").click();
   assert.ok(ctx.$("voiceSheet").classList.contains("show"));
@@ -1128,4 +1158,90 @@ test("首页有全库听音辨汉语入口：学过的词不够时锁着，够�
   assert.equal(G.u, 0, "全库模式不属于任何一个单元");
   assert.ok(G.qs.length >= 4);
   G.qs.forEach((q) => assert.equal(q.type, "listenZh"));
+});
+
+/* ================= 整句人声：云端通道 ================= */
+
+test("听写页必须屏蔽 Referer：少了这条，云端音频一律 code 4", () => {
+  const head = LH.slice(0, LH.indexOf("</head>"));
+  assert.ok(/<meta name="referrer" content="no-referrer">/.test(head),
+    "云端接口对带 Referer 的请求返回 0 字节，全靠这条 meta 才放行");
+  const firstRes = head.search(/<(link|script)\b/);
+  const metaAt = head.search(/<meta name="referrer"/);
+  assert.ok(metaAt > -1 && (firstRes === -1 || metaAt < firstRes),
+    "referrer 策略必须排在第一个子资源之前，否则它生效前已经发出带 Referer 的请求了");
+});
+
+test("默认就是云端人声：一句话只请求一次整句音频，不走设备合成", async () => {
+  const ctx = bootListening();          // 不给偏好 = 默认
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 150));
+
+  assert.equal(ctx.audios.length, 1,
+    "整句一次取，而且预取的那一个要复用来播，不能请求两遍：" + ctx.audios.length);
+  const src = ctx.audios[0].initSrc;
+  assert.match(src, /fanyi\.baidu\.com/, "地址：" + src);
+  assert.match(src, /lan=en/, "A 默认美音");
+  assert.equal(ctx.spoken.length, 0, "云端能出声时不该再走设备合成");
+  assert.match(ctx.$("playBig").textContent, /再听一次/);
+});
+
+test("B 说话时换成另一条声线（英音），不是同一个声音假装两个人", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.win.__dlg.go(1);
+  assert.equal(ctx.$("whoBadge").textContent, "B");
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 150));
+  const uk = ctx.audios.filter((a) => /lan=uk/.test(a.initSrc));
+  assert.ok(uk.length > 0, "B 必须走另一条声线，实际请求：" + ctx.audios.map((a) => a.initSrc).join(" | "));
+});
+
+test("云端取不到声音时当场退回设备合成，不让用户点第二次", async () => {
+  const ctx = bootListening({ audioFail: true });
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 250));
+
+  assert.ok(ctx.spoken.length > 0, "必须自己退到设备合成，而不是显示没声音");
+  assert.ok(!ctx.$("noVoice").classList.contains("show"), "设备能出声就不该报错");
+});
+
+test("切成设备语音后不再向云端发请求", async () => {
+  const ctx = bootListening({ source: "device" });
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(ctx.audios.length, 0, "设备通道不该创建任何 <audio>");
+  assert.ok(ctx.spoken.length > 0);
+});
+
+test("慢速对真实录音只做轻微拉伸，且不改音高", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("slowBtn").click();            // 打开慢速会顺带播一次
+  await new Promise((r) => setTimeout(r, 150));
+  const a = ctx.audios[ctx.audios.length - 1];
+  assert.ok(a.playbackRate < 1, "慢速要真的慢：" + a.playbackRate);
+  assert.ok(a.playbackRate >= 0.8, "真实录音拉伸过头会发糊，不能像合成那样压到 0.75：" + a.playbackRate);
+  assert.equal(a.preservesPitch, true, "只慢不降调，否则听起来像磁带快没电");
+});
+
+test("声音来源面板把「要联网、句子外发」写在按钮旁边", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("srcBtn").click();
+  assert.ok(ctx.$("srcSheet").classList.contains("show"));
+  const rows = ctx.doc.querySelectorAll("#srcList .vrow");
+  assert.equal(rows.length, 2);
+  assert.match(rows[0].textContent, /云端人声/);
+  assert.match(rows[0].textContent, /联网|第三方/, "代价要写在选的地方，不能只藏在文档里");
+  assert.match(rows[1].textContent, /设备语音/);
+});
+
+test("云端模式下气口圆点只留一个：整句是一段音频，没有人工气口可数", () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  assert.equal(ctx.doc.querySelectorAll("#dots .dot").length, 1);
 });
