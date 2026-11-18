@@ -766,3 +766,39 @@ test("闯关里真的会出现听音题，不是只在测试里存在", () => {
   G.qs.forEach((q) => { kinds[q.type] = (kinds[q.type] || 0) + 1; });
   assert.ok(kinds.listen > 0, "12 个词的关卡里应该至少有一道听音题，实际：" + JSON.stringify(kinds));
 });
+
+test("每日队列：有复习词时才穿插听音题，新词永远只考认词", () => {
+  const ctx = boot("cet4");
+  const S = ctx.api.getS();
+  // 造三个「已经答对过、今天该复习」的词
+  ["abandon", "ability", "able"].forEach((w) => {
+    S.words[w] = {
+      seen: 3, reps: 3, stability: 2, difficulty: 5,
+      dueAt: "2000-01-01", lastReview: "2000-01-01",
+      okDays: ["2000-01-01", "2000-01-02", "2000-01-03"],
+      lapses: 0, dirs: { recog: "2000-01-03" }
+    };
+  });
+  ctx.$("heroBtn").click();
+  const G = ctx.api.getG();
+  const byType = {};
+  G.qs.forEach((q, i) => {
+    byType[q.type] = (byType[q.type] || 0) + 1;
+    if (q.type === "listen") assert.ok(q.options && q.options.length === 4, "听音题必须有四个选项");
+  });
+  assert.ok(byType.listen > 0, "有复习词时应该出现听音题，实际：" + JSON.stringify(byType));
+  assert.ok(byType.match > 0, "新词仍然只考认词");
+  assert.ok(!G.qs.some((q) => q.type === "grammar"), "每日队列只练词，不插语法题");
+});
+
+test("隐藏发音行时要把音标一起清掉，不能留着上一题的", () => {
+  const ctx = boot("cet4");
+  const G = openFirstLevel(ctx);
+  // 找一道不带发音行的认词题
+  const mi = G.qs.findIndex((q) => q.type === "match");
+  assert.ok(mi >= 0, "应存在认词题");
+  ctx.$("phonetic").textContent = "/残留值/";
+  G.idx = mi;
+  ctx.win.renderQ();
+  assert.equal(ctx.$("phonetic").textContent, "", "认词题不该在 DOM 里留着音标");
+});

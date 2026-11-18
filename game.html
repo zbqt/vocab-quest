@@ -562,7 +562,9 @@ function showAudio(en,ph){
   $("audioStatus").textContent="";
   $("playBtn").onclick=()=>playWord(en);
 }
-function hideAudio(){$("audioRow").style.display="none";}
+/* 隐藏时连内容一起清掉：只藏不清，上一题的音标会留在 DOM 里，
+   哪天样式一改就可能把答案提前漏出去 */
+function hideAudio(){$("audioRow").style.display="none";$("phonetic").textContent="";$("audioStatus").textContent="";}
 
 /* ================= 模式辅助 ================= */
 function passMap(){return S.shufMode?S.passedS:S.passed;}
