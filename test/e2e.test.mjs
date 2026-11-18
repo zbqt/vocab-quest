@@ -90,6 +90,43 @@ function playThrough(ctx, { wrongWord = false } = {}) {
   return { first, wrongedOn };
 }
 
+test("体力耗尽时结算面板再长也能点到按钮：内容自己滚，按钮钉在底部", async () => {
+  const ctx = boot("cet4");
+  openFirstLevel(ctx);
+  // 连错三次把命打光 —— 这时候一题没答对，结算里的「未作答」列表最长，正是按钮被顶出屏幕的那种局
+  let guard = 0;
+  while (!ctx.api.getG().finished && ctx.api.getG().hp > 0 && guard++ < 10) answerCurrent(ctx, false);
+  // 命打光后还有个 700ms 的收尾延迟（让玩家看清最后一题的答案）
+  await new Promise((r) => setTimeout(r, 900));
+  assert.ok(ctx.api.getG().finished, "应走到结算");
+
+  // 定级测试的结果面板也用了 .result-box / .result-btns，必须限定在闯关结算这一个里
+  const box = ctx.doc.querySelector("#overlay .result-box");
+  const body = ctx.$("resultBody");
+  const btns = ctx.doc.querySelector("#overlay .result-btns");
+  assert.ok(box && body && btns, "结算面板要分成「可滚内容 + 固定按钮」两段");
+
+  // 长度是真的：未作答的词一大把，面板必然超出屏幕
+  const todo = ctx.doc.querySelectorAll("#ovTodoList .todo-item").length;
+  assert.ok(todo > 5, "这一局应该有大量未作答词，实际 " + todo);
+
+  // 两个按钮必须在滚动区之外，否则内容一长就被滚走 / 顶出屏幕
+  ["resHome", "resAgain"].forEach((id) => {
+    assert.ok(!body.contains(ctx.$(id)), id + " 不能放在滚动区里");
+    assert.ok(btns.contains(ctx.$(id)), id + " 要留在固定按钮条里");
+  });
+  assert.ok(body.contains(ctx.$("wordOverview")), "长内容（单词总览）要放进滚动区");
+
+  // 布局本身得封顶 + 可滚，只改结构不算修好
+  const cs = ctx.win.getComputedStyle(body);
+  assert.equal(cs.overflowY, "auto", "内容区要能滚，实际：" + cs.overflowY);
+  assert.equal(ctx.win.getComputedStyle(box).overflow, "hidden", "外框不能跟着一起撑高");
+  assert.notEqual(ctx.win.getComputedStyle(btns).flexShrink, "1", "按钮条不许被压缩");
+
+  // 按钮条在滚动区之后（flex 纵向排列下就是钉在底部）
+  assert.equal(body.nextElementSibling, btns);
+});
+
 test("完整一局（13 题全对）：3 星可达、地图写入、事件完整", () => {
   const ctx = boot("cet4");
   const G = playThrough(ctx).first;

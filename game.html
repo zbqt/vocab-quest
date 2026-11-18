@@ -130,9 +130,14 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .skip-known:hover{background:#eef1ff;color:#5b6cff;border-color:#c3ccff}
 
 /* 结算 */
-.overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+/* 遮罩要能滚：有些浏览器弹键盘/缩窗口时视口比弹层还矮，光靠内部滚动不够 */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;overflow-y:auto;overscroll-behavior:contain}
 .overlay.show{display:flex}
-.result-box{background:#fff;border-radius:20px;padding:26px 22px;max-width:380px;width:100%;text-align:center}
+/* 弹层自己封顶，内部再分两段：上面内容滚，下面按钮钉住。
+   原来是整体一块，本关单词总览一长（十几条）按钮就被顶到屏幕外，而且遮罩不滚 = 彻底点不到。 */
+.result-box{background:#fff;border-radius:20px;max-width:380px;width:100%;text-align:center;display:flex;flex-direction:column;
+  max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);max-height:100%;overflow:hidden}
+.result-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:26px 22px 10px}
 .result-box .big{font-size:48px}
 .result-box h2{margin:8px 0 4px;font-size:22px}
 .result-box .sub{color:#6b7280;font-size:13px;margin-bottom:14px}
@@ -140,7 +145,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .reward div{background:#f8faff;border-radius:12px;padding:10px 16px;font-weight:700;font-size:13px}
 .reward .e{color:#5b6cff}
 .reward .c{color:#d97706}
-.result-btns{display:flex;gap:8px;justify-content:center}
+/* 按钮区不吃压缩、不参与滚动，永远露在最下面 */
+.result-btns{display:flex;gap:8px;justify-content:center;flex:0 0 auto;padding:12px 22px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom));border-top:1px solid #eef1f7;background:#fff}
 .result-btns .btn{padding:11px 22px;font-size:14px}
 .wrong-recap{margin-top:12px;text-align:left}
 .wrong-recap h4{font-size:13px;color:#6b7280;margin-bottom:6px}
@@ -397,17 +404,19 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 </div>
 <div class="overlay" id="overlay">
   <div class="result-box">
-    <div class="big" id="resBig">🎉</div>
-    <h2 id="resTitle">关卡通关！</h2>
-    <div class="sub" id="resSub">正确 9/10 题</div>
-    <div class="reward">
-      <div class="e">⭐ EXP +<span id="resExp">0</span></div>
-      <div class="c">● Coin +<span id="resCoin">0</span></div>
-    </div>
-    <div class="wrong-recap" id="wordOverview" style="display:none">
-      <h4>本关单词总览</h4>
-      <div id="ovWrongList"></div>
-      <div id="ovTodoList"></div>
+    <div class="result-body" id="resultBody">
+      <div class="big" id="resBig">🎉</div>
+      <h2 id="resTitle">关卡通关！</h2>
+      <div class="sub" id="resSub">正确 9/10 题</div>
+      <div class="reward">
+        <div class="e">⭐ EXP +<span id="resExp">0</span></div>
+        <div class="c">● Coin +<span id="resCoin">0</span></div>
+      </div>
+      <div class="wrong-recap" id="wordOverview" style="display:none">
+        <h4>本关单词总览</h4>
+        <div id="ovWrongList"></div>
+        <div id="ovTodoList"></div>
+      </div>
     </div>
     <div class="result-btns">
       <button class="btn btn-primary" id="resHome">返回地图</button>
@@ -418,16 +427,16 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
 <div class="toast" id="toast"></div>
 
-<script src="tts.js?v=0.12.0"></script>
-<script src="vocab_cz.js?v=0.12.0"></script>
-<script src="vocab_gz.js?v=0.12.0"></script>
-<script src="vocab.js?v=0.12.0"></script>
-<script src="vocab_c6.js?v=0.12.0"></script>
-<script src="grammar.js?v=0.12.0"></script>
-<script src="dictation.js?v=0.12.0"></script>
-<script src="fsrs.js?v=0.12.0"></script>
-<script src="engine.js?v=0.12.0"></script>
-<script src="cloud-sync.js?v=0.12.0"></script>
+<script src="tts.js?v=0.12.1"></script>
+<script src="vocab_cz.js?v=0.12.1"></script>
+<script src="vocab_gz.js?v=0.12.1"></script>
+<script src="vocab.js?v=0.12.1"></script>
+<script src="vocab_c6.js?v=0.12.1"></script>
+<script src="grammar.js?v=0.12.1"></script>
+<script src="dictation.js?v=0.12.1"></script>
+<script src="fsrs.js?v=0.12.1"></script>
+<script src="engine.js?v=0.12.1"></script>
+<script src="cloud-sync.js?v=0.12.1"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -1221,7 +1230,7 @@ function finish(win){
   const realCorrect=G.correct-(G.skipped||0);
   $("resSub").textContent=`正确 ${realCorrect}/${total} 题`
     +(G.skipped?`（跳过 ${G.skipped} 个）`:"")
-    +(G.degraded?` · ${G.degraded} 题因设备放不出声未计入听力判定，换 Chrome / Safari 再来`:"" )
+    +(G.degraded?` · ${G.degraded} 题放不出声，未计入听力判定`:"" )
     +(G.rescue?(G.wrong?` · 还有 ${G.wrong} 个没稳住，建议再来一轮`:" · 全部答对，错词区应该空了不少")
       :G.listen?(win?`，获得 ${stars} 星 · 听错的词再进一次听力关就补上了`:`，需答对 ${G.passNeed} 题通关`)
       :G.daily?(G.wrong?` · 答错的 ${G.wrong} 个词会再出现`:" · 全对，很稳")
@@ -1238,6 +1247,8 @@ function finish(win){
     $("ovTodoList").innerHTML=todo.length?`<div class="ov-group">未作答 ${todo.length} 词</div>`+todo.map(w=>itemHtml(w,"todo-item")).join(""):"";
     [...document.querySelectorAll("#ovWrongList .audio-btn,#ovTodoList .audio-btn")].forEach(b=>b.onclick=()=>playWord(b.getAttribute("data-w")));
   }else ov.style.display="none";
+  // 每次开面板都从顶部看起：滚过一屏的旧位置会带到下一局，看起来像"漏了标题"
+  const rb=$("resultBody"); if(rb)rb.scrollTop=0;
   $("overlay").classList.add("show");
 }
 

@@ -210,3 +210,35 @@
 原句在**提交后才摊开**，顺序反了就成抄写。
 
 **看英文选中文** —— `TYPE_DIR` 原来把 `match` 标成 `recog`，名不副实；现在 `lookZh` 才真正是"看见就懂"的方向。
+
+---
+
+## 结算面板把按钮顶出屏幕（2026-11-18，用户截图反馈）
+
+**原话**
+
+> 你快看这个界面，我都点不了下一关或者点出去了
+
+截图：体力耗尽那一局，结算面板从「正确 0/13 题」一路铺到「未作答 13 词」，列表把整块撑到屏幕外，底部两个按钮完全看不见 —— 而遮罩层本身**不能滚**，所以连滚到按钮的路都没有。这不是"按钮小"，是面板结构问题。
+
+**真因**
+
+`.result-box` 是一条完整的白色卡片，标题、奖励、单词总览、按钮全在同一个流里，没有高度上限。遮罩 `.overlay` 也没有 `overflow`，内容一超高就只能溢出视口。
+
+而溢出方向是**上下两侧**（`align-items:center` 居中的经典副作用）：顶部负坐标滚不到，底部按钮滚不到，等于全锁死。
+
+**做法**
+
+把面板拆成两段：`.result-body`（可滚）+ `.result-btns`（钉底）。
+
+- `.result-box` 改 flex 纵向、`overflow:hidden`、`max-height` 封顶。封顶写三行：`calc(100vh - 32px)` → `calc(100dvh - 32px)` → `100%`。最后一行相对遮罩的内容盒（已扣 padding），比 dvh 更兼容，也不怕地址栏伸缩。
+- `.result-body`：`flex:1 1 auto; min-height:0; overflow-y:auto`。**`min-height:0` 不能省** —— flex 子项默认 `min-height:auto`，内容会把它撑回去，滚动条根本不出现。
+- `.result-btns`：`flex:0 0 auto` 不参与压缩，底部加 `env(safe-area-inset-bottom)`，iPhone 横条不会压住按钮。
+- 每次开面板把 `scrollTop` 归零：滚过一屏的旧位置会带到下一局，看着像"标题丢了"。
+- 遮罩加 `overflow-y:auto` + `overscroll-behavior:contain` 作双保险（弹键盘时视口会比面板还矮），并防止滚到底继续带动底层页面。
+
+**顺手改的文案**：降级提示原来还写着"换 Chrome / Safari 再来"，但声音早就不依赖浏览器引擎了，这句只剩推卸责任的作用。
+
+**怎么确保不再犯**：`test/e2e.test.mjs` 加一条 — 连错三次打光体力造出最长的那一局，断言按钮**不在滚动区里**、长内容在滚动区里、`.result-body` 的 `overflow-y` 真的是 `auto`、按钮条 `flex-shrink` 不是 1。布局类问题 jsdom 量不出像素，但能钉住"结构前提"，而这类 bug 全部来自结构前提被破坏。
+
+**踩到的坑**：测试里 `querySelector(".result-box")` 抓到的是**定级测试**的结果面板（同一个 class，排在前面），按钮 id 对不上白白失败一次。改 `#overlay .result-box` 限定作用域。
