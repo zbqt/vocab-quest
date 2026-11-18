@@ -531,6 +531,8 @@ function playWord(en,opts){
   speakWord(en,(ok,reason)=>{
     if(my!==audioToken)return;
     if(ok){setState("🔊 重新播放","",false);return;}
+    // 听音题靠"有没有声音"决定题目怎么呈现，所以失败要先通知它，再谈界面文案
+    if(opts.onFail)opts.onFail(reason);
     // 答题后自动朗读不在用户手势里，iOS 会以 not-allowed 拦下；这种不打扰用户，喇叭仍可点
     if(opts.auto&&reason==="not-allowed"){setState("🔊 播放发音","",false);return;}
     const advice=window.VQSpeech?VQSpeech.reasonText(reason):"这台设备的语音引擎不可用，可换个浏览器试试";
@@ -752,10 +754,12 @@ function start(u,l,mode){
   const lp=(lpSet[u]&&lpSet[u][l-1])||pool.slice(0,LEVEL_SIZE);
   const gN=mode==="review"?0:CFG.grammarN[l<=2?0:(l<=8?1:2)];
   const spellEvery=mode==="review"?3:CFG.spellK[l<=3?0:(l<=8?1:2)];
+  // 听音题：闯关和测试里每几个词来一道。复习模式不出 —— 复习要的是稳，不是新鲜的考法。
+  const listenEvery=mode==="review"?0:4;
   const sess=VQ.buildSession({
     words:shuffle(lp.slice()),          // 本关全部 12 词，每词必考一次
     grammar:mode==="review"?[]:grammarPick(gN),
-    grammarN:gN, spellEvery:spellEvery, mode:mode, pool:pool
+    grammarN:gN, spellEvery:spellEvery, listenEvery:listenEvery, mode:mode, pool:pool
   });
   G={
     u,l,mode,shuf:S.shufMode&&mode!=="review",daily:false,
@@ -769,10 +773,25 @@ function start(u,l,mode){
   $("modeTag").textContent=mode==="play"?(S.shufMode?"🎲 乱序闯关":"📖 顺序闯关"):mode==="review"?"复习模式":(S.shufMode?"🎲 乱序测试":"测试模式");
   $("modeTag").className="mode-tag"+(mode==="play"?"":" "+mode);
   $("levelTitle").textContent=S.shufMode?`乱序第${u}段 LV${l}`:`第${u}单元 LV${l}`;
-  $("gameHint").textContent=mode==="play"?`本关 ${sess.total} 题 · 答对 ${sess.passNeed} 题通关 · 全对得 3 星`
-    :mode==="review"?"巩固本关全部单词，不计星、不扣体力":"完整考核，错题进入错词区";
+  const hasListen=sess.questions.some(q=>q.type==="listen");
+  $("gameHint").textContent=(mode==="play"?`本关 ${sess.total} 题 · 答对 ${sess.passNeed} 题通关 · 全对得 3 星`
+    :mode==="review"?"巩固本关全部单词，不计星、不扣体力":"完整考核，错题进入错词区")+(hasListen?" · 🎧 含听音题":"");
   show("gameView");
   renderQ();
+}
+/* 放不出声音时，听音题当场退化成「看中文选英文」。
+   一台放不出声的手机不该得到一道无法作答的死题 —— 这是听音题能不能上线的底线。 */
+function degradeListen(){
+  const q=G.qs&&G.qs[G.idx];
+  if(!q||q.type!=="listen"||q.degraded)return false;
+  q.degraded=true;
+  q.type="match";          // 判定沿用 match，后续逻辑不用分叉
+  q.prompt=q.zh;
+  $("cnWord").textContent=q.zh;
+  $("enemyLabel").textContent="👾 选择正确的英文单词";
+  $("qTitle").textContent="这台设备放不出声音，已改成看中文选单词";
+  $("audioStatus").textContent="听音题已降级";
+  return true;
 }
 function renderQ(){
   const q=G.qs[G.idx];
@@ -781,15 +800,17 @@ function renderQ(){
   if(q.en&&window.VQSpeech&&VQSpeech.prefetch)VQSpeech.prefetch(q.en);
   const T=G.qs.length;
   G.qStart=Date.now();
-  $("cnWord").textContent=q.prompt;
-  $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战":(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词");
-  $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项":(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词");
+  $("cnWord").textContent=q.type==="listen"?"🎧 听发音，选出你听到的单词":q.prompt;
+  $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战":(q.type==="listen"?"🎧 听音选词":(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词"));
+  $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项":(q.type==="listen"?"听不清可以多点几次，答案就藏在声音里":(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词"));
   $("qcount").textContent=(G.idx+1)+"/"+T;
   $("progFill").style.width=(G.idx/T*100)+"%";
   $("feedback").textContent="";$("feedback").className="feedback";
   $("combo").textContent=G.combo>=2?`🔥 连对 ${G.combo}！`:"";
   renderHearts();
-  if(q.type==="spell")showAudio(q.en,q.ph);else hideAudio();
+  if(q.type==="spell")showAudio(q.en,q.ph);
+  else if(q.type==="listen")showAudio(q.en,"");   // 不传音标：音标几乎等于把答案念出来
+  else hideAudio();
   preloadWord(q.en);
   if(q.optDefs)q.optDefs.forEach(d=>preloadWord(d.en));
   const od=$("optDefs");od.style.display="none";od.innerHTML="";
@@ -797,7 +818,7 @@ function renderQ(){
   $("knownBtn").style.display=(q.type!=="grammar"&&q.en)?"block":"none";
 
   const box=$("optionsBox");box.innerHTML="";
-  if(q.type==="match"||q.type==="grammar"){
+  if(q.type==="match"||q.type==="listen"||q.type==="grammar"){
     q.options.forEach(opt=>{
       const b=document.createElement("button");b.className="option";b.textContent=opt;
       b.onclick=()=>pickMatch(b,opt);box.appendChild(b);
@@ -814,6 +835,21 @@ function renderQ(){
     wrap.appendChild(btn("提交","btn-primary",()=>pickSpell(inp.value.trim().toLowerCase())));
     box.appendChild(wrap);
     setTimeout(()=>{if($("spellInput")&&!$("spellInput").disabled)$("spellInput").focus();},60);
+  }
+
+  // 听音题：进来先自动播一次。真的放不出声才降级；
+  // iOS 的 not-allowed 属于「点一下就能播」，那种情况绝不能降级，否则 iPhone 永远用不上听音题。
+  if(q.type==="listen"){
+    setTimeout(()=>{
+      if(G.answered||G.finished)return;
+      playWord(q.en,{auto:true,onFail:(reason)=>{
+        if(reason==="not-allowed"){
+          $("audioStatus").textContent="点一下上面的扬声器开始播放";
+          return;
+        }
+        degradeListen();
+      }});
+    },120);
   }
 }
 function renderOptDefs(defs,answer,picked){
@@ -1014,9 +1050,12 @@ function openDaily(reviewOnly){
   const words=items.map(it=>WORD_INDEX[it.word]);
   // 只有「曾经答对过」的词才考拼写。刚见过一次、甚至刚答错的词仍只考认词——
   // 第二次见面就要求拼写是刁难，也容易把人劝退。
-  const wordTypes=items.map(it=>{
+  const wordTypes=items.map((it,i)=>{
     const ws=S.words[it.word];
-    return ws&&(ws.okDays||[]).length>0?"spell":"match";
+    // 新词只考认词（第一次见就要求听音辨词是刁难）
+    if(!(ws&&(ws.okDays||[]).length>0))return "match";
+    // 复习词：拼写为主，每 3 个穿插 1 道听音，逼着耳朵也参与
+    return i%3===2?"listen":"spell";
   });
   const sess=VQ.buildSession({words,wordTypes,grammar:[],grammarN:0,spellEvery:0,mode:"review",pool:BANK});
   G={
@@ -1029,7 +1068,7 @@ function openDaily(reviewOnly){
   $("modeTag").textContent=reviewOnly?"到期复习":"今天 "+sess.total+" 词";
   $("modeTag").className="mode-tag review";
   $("levelTitle").textContent="复习 "+(items.length-nNew)+" · 新词 "+nNew;
-  $("gameHint").textContent="新词考认词、复习考拼写 · 不扣体力 · 答错当天会再出现";
+  $("gameHint").textContent="新词考认词、复习考拼写"+(wordTypes.some(t=>t==="listen")?"与听音":"")+" · 不扣体力 · 答错当天会再出现";
   show("gameView");renderQ();
 }
 $("heroBtn").onclick=()=>openDaily();

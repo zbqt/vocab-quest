@@ -350,3 +350,59 @@ test("语法题不会排在第一题（第一题留给本关第一个单词）",
     assert.equal(sess.questions.filter((q) => q.type === "grammar").length, 3, "语法题数量不能少");
   }
 });
+
+/* ================= 听音选词 ================= */
+
+function listenWords(n) {
+  return Array.from({ length: n }, (_, i) => ["w" + (i + 1), "释义" + (i + 1), "w" + (i + 1)]);
+}
+
+test("听音题按 listenEvery 的比例出现，且题干里一个字都不许有", () => {
+  const words = listenWords(12);
+  const sess = VQ.buildSession({ words, listenEvery: 4, spellEvery: 0, mode: "play", pool: words });
+  const listens = sess.questions.filter((q) => q.type === "listen");
+  assert.equal(listens.length, 3, "12 个词、每 4 个一道，应该正好 3 道");
+  listens.forEach((q) => {
+    assert.equal(q.prompt, "", "题干不能留任何文字线索，否则听音题等于白出");
+    assert.equal(q.options.length, 4, "四个选项");
+    assert.ok(q.options.includes(q.answer), "正确答案必须在选项里");
+    assert.equal(q.options.filter((o) => o === q.answer).length, 1);
+    assert.ok(q.optDefs && q.optDefs.length === 4, "要带上答完后展示的词条");
+  });
+});
+
+test("听音题不会把同一个词塞进两个选项", () => {
+  // 跨词库合并后的池子里重复词很常见，重复选项会让听音题变成「选哪个都一样」
+  const dup = [["apple", "苹果", ""], ["apple", "苹果（重复）", ""], ["pear", "梨", ""], ["peach", "桃", ""], ["plum", "李子", ""], ["grape", "葡萄", ""]];
+  const sess = VQ.buildSession({ words: [dup[0]], wordTypes: ["listen"], listenEvery: 0, spellEvery: 0, pool: dup });
+  const q = sess.questions[0];
+  const uniq = new Set(q.options);
+  assert.equal(uniq.size, q.options.length, "选项必须互不相同：" + q.options.join(","));
+});
+
+test("可以点名要一道听音题（wordTypes 覆盖排课节奏）", () => {
+  const words = listenWords(5);
+  const sess = VQ.buildSession({ words, wordTypes: ["listen"], listenEvery: 0, spellEvery: 0, mode: "review", pool: words });
+  assert.equal(sess.questions[0].type, "listen");
+  assert.equal(sess.questions[1].type, "match", "没点名的词还是认词题");
+});
+
+test("listenEvery 为 0 时一道听音题都不出（复习模式不该有新考法）", () => {
+  const words = listenWords(12);
+  const sess = VQ.buildSession({ words, listenEvery: 0, spellEvery: 0, mode: "review", pool: words });
+  assert.equal(sess.questions.filter((q) => q.type === "listen").length, 0);
+});
+
+test("拼写和听音撞在一起时拼写优先，不会一题两种要求", () => {
+  const words = listenWords(12);
+  // spellEvery=4 与 listenEvery=4 在同一批下标上打架
+  const sess = VQ.buildSession({ words, listenEvery: 4, spellEvery: 4, mode: "play", pool: words });
+  sess.questions.forEach((q) => {
+    assert.ok(["match", "spell", "listen", "grammar"].includes(q.type), "题型必须是已知的四种之一：" + q.type);
+    if (q.type === "listen") {
+      assert.equal(q.prompt, "", "听音题不该带文字题干");
+      assert.ok(q.options && q.options.length === 4);
+    }
+  });
+  assert.equal(sess.total, 12, "不能因为排课逻辑丢题或多题");
+});

@@ -697,3 +697,72 @@ test("预取：题目出现时先把录音下下来，但不发声", () => {
   assert.equal(made[0].played, false, "预取只下载不播放");
   assert.equal(made[0].loaded, true, "要真正触发下载");
 });
+
+/* ================= 听音选词 ================= */
+
+const LISTEN_Q = {
+  type: "listen", en: "abandon", zh: "放弃", ph: "əˈbændən", prompt: "",
+  answer: "abandon",
+  options: ["abandon", "ability", "absorb", "abstract"],
+  optDefs: [
+    { en: "abandon", zh: "放弃", ph: "əˈbændən" },
+    { en: "ability", zh: "能力", ph: "əˈbɪləti" },
+    { en: "absorb", zh: "吸收", ph: "əbˈsɔːb" },
+    { en: "abstract", zh: "抽象的", ph: "ˈæbstrækt" }
+  ]
+};
+
+function plantListen(ctx) {
+  const G = openFirstLevel(ctx);
+  G.qs[G.idx] = Object.assign({}, LISTEN_Q, { options: LISTEN_Q.options.slice(), optDefs: LISTEN_Q.optDefs.slice() });
+  ctx.win.renderQ();
+  return G;
+}
+
+test("听音题答题前：不露英文、不露音标，只给一个扬声器", () => {
+  const ctx = boot("cet4");
+  plantListen(ctx);
+  assert.match(ctx.$("enemyLabel").textContent, /听音/, "题型标签要标明是听音题");
+  assert.match(ctx.$("cnWord").textContent, /听发音/, "题干只说明要听，不给词");
+  assert.ok(!ctx.$("cnWord").textContent.includes("abandon"), "题干绝不能把答案写出来");
+  assert.equal(ctx.$("phonetic").textContent, "", "音标基本等于答案，答题前不能显示");
+  assert.equal(ctx.$("audioRow").style.display, "flex", "必须给出播放按钮，否则没法听");
+  assert.equal(ctx.doc.querySelectorAll("#optionsBox .option").length, 4, "四个英文单词选项");
+});
+
+test("听音题：设备放不出声音时当场降级，不会留下一道无法作答的死题", async () => {
+  const ctx = boot("cet4");
+  delete ctx.win.Audio;
+  delete ctx.win.speechSynthesis;
+  delete ctx.win.SpeechSynthesisUtterance;
+  const G = plantListen(ctx);
+
+  await new Promise((r) => setTimeout(r, 400)); // 等自动试播失败
+
+  const q = G.qs[G.idx];
+  assert.equal(q.type, "match", "放不出声就必须退化成认词题");
+  assert.equal(ctx.$("cnWord").textContent, "放弃", "降级后靠中文题干作答");
+  assert.match(ctx.$("qTitle").textContent, /已改成看中文/, "要跟用户说明白为什么变样了");
+
+  const opt = [...ctx.doc.querySelectorAll("#optionsBox .option")].find((b) => b.textContent === "abandon");
+  opt.click();
+  assert.equal(G.answered, true, "降级后必须能正常作答");
+});
+
+test("听音题答完后把词亮出来：音标和释义都还给用户", () => {
+  const ctx = boot("cet4");
+  const G = plantListen(ctx);
+  const opt = [...ctx.doc.querySelectorAll("#optionsBox .option")].find((b) => b.textContent === "abandon");
+  opt.click();
+  assert.equal(G.correct, 1, "选对要算对");
+  assert.equal(ctx.$("phonetic").textContent, "/əˈbændən/", "答完该把音标补上，这是学习反馈的一部分");
+  assert.ok(ctx.$("optDefs").textContent.includes("放弃"), "四个词的中文释义都要摊开给看");
+});
+
+test("闯关里真的会出现听音题，不是只在测试里存在", () => {
+  const ctx = boot("cet4");
+  const G = openFirstLevel(ctx);
+  const kinds = {};
+  G.qs.forEach((q) => { kinds[q.type] = (kinds[q.type] || 0) + 1; });
+  assert.ok(kinds.listen > 0, "12 个词的关卡里应该至少有一道听音题，实际：" + JSON.stringify(kinds));
+});

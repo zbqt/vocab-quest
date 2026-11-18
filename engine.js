@@ -716,11 +716,13 @@
     var en = word[0], zh = word[1], ph = word[2] || "";
     var rng = opts.rng || defaultRng;
     var spellEvery = opts.spellEvery || 0;
+    var listenEvery = opts.listenEvery || 0;
     var pool = opts.pool || [];
+    var force = opts.forceType || "";
 
     // forceType 优先：每日队列里新词只考识别、复习词才考拼写
-    var wantSpell = opts.forceType
-      ? opts.forceType === "spell"
+    var wantSpell = force
+      ? force === "spell"
       : (spellEvery > 0 && (index + 1) % spellEvery === 0);
 
     if (wantSpell) {
@@ -731,20 +733,51 @@
         answer: en
       };
     }
-    var others = rng(pool.filter(function (w) { return w[0] !== en; }))
-      .slice(0, 3).map(function (w) { return w[0]; });
+
+    // 干扰项去重：跨词库合并后的池子里同一个词可能出现多次，
+    // 不去重会出现「两个选项一模一样」，对听音题尤其致命（听到 A，选哪个 A？）
+    var seenOpt = {};
+    seenOpt[en] = 1;
+    var cands = [];
+    for (var pi = 0; pi < pool.length; pi++) {
+      var cand = pool[pi] && pool[pi][0];
+      if (!cand || seenOpt[cand]) continue;
+      seenOpt[cand] = 1;
+      cands.push(cand);
+    }
+    var others = rng(cands).slice(0, 3);
     var options = rng([en].concat(others));
+    var optDefs = options.map(function (o) {
+      var f = null;
+      for (var i = 0; i < pool.length; i++) if (pool[i][0] === o) { f = pool[i]; break; }
+      return { en: o, zh: f ? f[1] : "", ph: f ? f[2] || "" : "" };
+    });
+
+    // 听音选词：题干是「声音」而不是文字，选项仍是 4 个英文单词。
+    // 这是唯一一条考「声音 → 词」通路的题型，对应四六级听力的最底层能力。
+    // 不显示英文、不显示音标、不显示中文 —— 否则等于直接给答案。
+    var wantListen = force
+      ? force === "listen"
+      : (listenEvery > 0 && (index + 1) % listenEvery === 0);
+
+    if (wantListen) {
+      return {
+        type: "listen",
+        en: en, zh: zh, ph: ph,
+        prompt: "",
+        answer: en,
+        options: options,
+        optDefs: optDefs
+      };
+    }
+
     return {
       type: "match",
       en: en, zh: zh, ph: ph,
       prompt: zh,
       answer: en,
       options: options,
-      optDefs: options.map(function (o) {
-        var f = null;
-        for (var i = 0; i < pool.length; i++) if (pool[i][0] === o) { f = pool[i]; break; }
-        return { en: o, zh: f ? f[1] : "", ph: f ? f[2] || "" : "" };
-      })
+      optDefs: optDefs
     };
   }
 
@@ -758,12 +791,32 @@
     var rng = input.rng || defaultRng;
     var mode = input.mode || "play";
     var spellEvery = input.spellEvery || 0;
+    var listenEvery = input.listenEvery || 0;
     var grammarN = Math.min(input.grammarN || 0, (input.grammar || []).length);
     var pool = input.pool || words;
 
+    // 排课：拼写先占位，听音只在剩下的空位里均匀插。
+    // 如果两者各用模数判断，spellEvery=4 和 listenEvery=4 会完全撞车，
+    // 听音题会被悄悄挤掉 —— 出题配比不能靠"模数碰巧不相撞"来保证。
+    var types = [];
+    for (var ti = 0; ti < words.length; ti++) {
+      var forcedT = input.wordTypes && input.wordTypes[ti];
+      if (forcedT) { types.push(forcedT); continue; }
+      types.push(spellEvery > 0 && (ti + 1) % spellEvery === 0 ? "spell" : "");
+    }
+    if (listenEvery > 0) {
+      var free = [];
+      for (var fi = 0; fi < types.length; fi++) if (!types[fi]) free.push(fi);
+      var want = Math.min(free.length, Math.max(1, Math.round(words.length / listenEvery)));
+      for (var wi = 0; wi < want; wi++) {
+        types[free[Math.floor((wi + 0.5) * free.length / want)]] = "listen";
+      }
+    }
+
     var wordQs = words.map(function (w, i) {
-      var forced = input.wordTypes && input.wordTypes[i];
-      return buildQuestion(w, i, { rng: rng, spellEvery: spellEvery, pool: pool, forceType: forced });
+      return buildQuestion(w, i, {
+        rng: rng, spellEvery: 0, listenEvery: 0, pool: pool, forceType: types[i] || "match"
+      });
     });
 
     var gPool = rng((input.grammar || []).slice());
