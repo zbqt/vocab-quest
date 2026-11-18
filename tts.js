@@ -437,6 +437,187 @@
     }
   }
 
+  /* ---------- 长对话：按气口分段朗读 ----------
+   * 系统合成把整句当一条直线念，所以听着机器。做法是把句子交给 VQProsody 排成
+   * 几个「一口气」的片段（谁说的、什么语气、哪里停多久），这里逐段念、按 pause 留白。
+   * 关键一条：段与段之间**绝不 cancel**，cancel 会把下一个音吞掉，句子会碎成一截一截。 */
+  var dlgToken = 0;
+  var DLG_PREF = "vq_dlg_voice";
+
+  function englishVoices() {
+    var s = getSynth();
+    var list = [];
+    try { if (s && typeof s.getVoices === "function") list = s.getVoices() || []; } catch (e) {}
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].lang || "").replace("_", "-").toLowerCase().indexOf("en") === 0) out.push(list[i]);
+    }
+    return out;
+  }
+
+  function findVoice(name) {
+    var list = englishVoices();
+    for (var i = 0; i < list.length; i++) if (list[i].name === name) return list[i];
+    return null;
+  }
+
+  function dialogueVoices() {
+    var list = englishVoices();
+    var P = global.VQProsody;
+    if (!P) return { a: list[0] || null, b: list[0] || null, distinct: false, options: [] };
+    var chosen = null;
+    try { chosen = global.localStorage && global.localStorage.getItem(DLG_PREF); } catch (e) {}
+    var pick = P.pickVoices(list, chosen);
+    return {
+      a: pick.a ? findVoice(pick.a.name) : null,
+      b: pick.b ? findVoice(pick.b.name) : null,
+      distinct: pick.distinct,
+      options: pick.options
+    };
+  }
+
+  function stopDialogue() {
+    dlgToken++;
+    var s = getSynth();
+    try { if (s) s.cancel(); } catch (e) {}
+    stopAudio();
+  }
+
+  /**
+   * 念一句台词（可多段）。
+   * @param {string} text
+   * @param {{speaker?:string, speed?:number, onPlan?:Function, onSegment?:Function,
+   *          onStart?:Function, onDone?:Function}} opts
+   */
+  function speakDialogue(text, opts) {
+    opts = opts || {};
+    var str = String(text == null ? "" : text).trim();
+    var token = 0;
+    var finish = once(function (ok, reason) {
+      if (token !== dlgToken) return; // 已经被新的播放/停止取代，别再回写 UI
+      if (opts.onDone) opts.onDone(ok, reason || "");
+    });
+
+    if (!str) { finish(false, "empty"); return false; }
+    var s = getSynth();
+    if (!s || !hasCtor()) { finish(false, "unsupported"); return false; }
+
+    bindVoices();
+    var P = global.VQProsody;
+    var plan = P
+      ? P.planLine(str, { speaker: opts.speaker, speed: opts.speed })
+      : { speaker: opts.speaker === "B" ? "B" : "A", segments: [{ text: str, rate: 1, pitch: 1, pause: 0, final: true }], emotion: {} };
+    if (opts.onPlan) { try { opts.onPlan(plan); } catch (e) {} }
+
+    var voices = dialogueVoices();
+    var voice = plan.speaker === "B" ? (voices.b || voices.a) : voices.a;
+
+    token = ++dlgToken;
+    stopAudio();                 // 单词录音别和整句抢着说话
+    resumeIfPaused(s);
+
+    var busy = false;
+    try { busy = !!(s.speaking || s.pending); } catch (e) {}
+    if (busy) {
+      try { s.cancel(); } catch (e) {}
+      setTimeout(function () { if (token === dlgToken) chain(); }, 60);
+    } else {
+      chain();                   // 空闲时同步进入，保住 iOS 的手势上下文
+    }
+    return true;
+
+    function chain() {
+      var i = 0;
+      step();
+
+      function step() {
+        if (token !== dlgToken) return;
+        if (i >= plan.segments.length) { finish(true); return; }
+        var seg = plan.segments[i];
+        var live = getSynth();
+        if (!live) { finish(false, "unsupported"); return; }
+
+        var u;
+        try { u = buildUtterance(seg.text, voice); }
+        catch (e) { finish(false, "synthesis-failed"); return; }
+        u.rate = seg.rate;
+        u.pitch = seg.pitch;
+
+        var started = false, settled = false, watch = null, myIndex = i;
+        if (opts.onSegment) { try { opts.onSegment(myIndex, plan.segments.length); } catch (e) {} }
+
+        u.onstart = function () {
+          started = true;
+          if (myIndex === 0 && opts.onStart) { try { opts.onStart(); } catch (e) {} }
+        };
+        u.onend = function () {
+          if (settled) return;
+          settled = true;
+          clearTimeout(watch);
+          next();
+        };
+        u.onerror = function (ev) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(watch);
+          // 这一段已经出过声就继续往下读，别因为一个报错让整句哑掉
+          if (started) { next(); return; }
+          finish(false, (ev && ev.error) || "synthesis-failed");
+        };
+
+        function next() {
+          i++;
+          if (i >= plan.segments.length) { finish(true); return; }
+          var t = setTimeout(step, seg.pause || 0);
+          if (t && typeof t.unref === "function") t.unref();
+        }
+
+        try { live.speak(u); }
+        catch (e) { finish(false, "synthesis-failed"); return; }
+
+        // 有的引擎不派 onend：按字数估一个上限，到点就当这段读完了
+        var budget = Math.max(2200, Math.round(seg.text.length / 11 * 1900));
+        watch = setTimeout(function () {
+          if (settled) return;
+          settled = true;
+          if (started) { next(); return; }
+          finish(false, "not-started");
+        }, budget);
+        if (watch && typeof watch.unref === "function") watch.unref();
+      }
+    }
+  }
+
+  // 试听某个音色（换声音面板用）：单段、原速，不套任何语气
+  function previewVoice(name, text) {
+    var s = getSynth();
+    if (!s || !hasCtor()) return false;
+    var v = findVoice(name);
+    if (!v) return false;
+    var u;
+    try { u = buildUtterance(String(text || "Hello, how can I help you today?"), v); }
+    catch (e) { return false; }
+    u.rate = 1;
+    u.pitch = 1;
+    var token = ++dlgToken;
+    try { s.cancel(); } catch (e) {}
+    setTimeout(function () {
+      if (token !== dlgToken) return;
+      try { s.speak(u); } catch (e) {}
+    }, 60);
+    return true;
+  }
+
+  function setDialogueVoice(name) {
+    try { global.localStorage.setItem(DLG_PREF, String(name || "")); } catch (e) {}
+    return name;
+  }
+  function getDialogueVoice() {
+    var v = null;
+    try { v = global.localStorage && global.localStorage.getItem(DLG_PREF); } catch (e) {}
+    return v || "";
+  }
+
   /* ---------- 诊断（"为什么没声音"找原因） ---------- */
   /* 预取录音：题目一出现就把音频下到缓存里，点喇叭时不用等那 300ms */
   function prefetch(text) {
@@ -495,6 +676,12 @@
   global.VQSpeech = {
     speak: speak,
     speakSentence: speakSentence,
+    speakDialogue: speakDialogue,
+    stopDialogue: stopDialogue,
+    previewVoice: previewVoice,
+    dialogueVoices: dialogueVoices,
+    setDialogueVoice: setDialogueVoice,
+    getDialogueVoice: getDialogueVoice,
     stop: stopAudio,
     diagnose: diagnose,
     reasonText: reasonText,

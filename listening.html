@@ -48,13 +48,34 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .fill{height:100%;background:linear-gradient(90deg,#6c7bff,#5b6cff);border-radius:999px;transition:width .3s}
 
 /* 播放 */
+.who{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.who-badge{width:22px;height:22px;border-radius:7px;background:#eef1ff;color:#5b6cff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.who-badge.b{background:#fff1e6;color:#d97706}
+.who-txt{font-size:11.5px;color:#8a91a5;font-weight:700}
+.dots{display:flex;gap:5px;margin-left:auto;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:#e2e6f0;transition:.18s}
+.dot.on{background:#5b6cff;transform:scale(1.5)}
 .play-big{width:100%;padding:22px 16px;border:none;border-radius:14px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:17px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px rgba(91,108,255,.22);transition:transform .14s}
 .play-big:active{transform:scale(.985)}
 .play-big.playing{background:linear-gradient(135deg,#8b97ff,#7480ff)}
 .play-big small{display:block;font-size:11.5px;font-weight:600;opacity:.85;margin-top:5px}
 .tools{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.tool{flex:1;min-width:96px;padding:9px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#4a5168;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+.tool{flex:1;min-width:88px;padding:9px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#4a5168;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
 .tool.on{background:#eef1ff;border-color:#ccd6ff;color:#5b6cff}
+
+/* 换声音面板 */
+.sheet-mask{position:fixed;inset:0;background:rgba(17,24,39,.42);opacity:0;pointer-events:none;transition:.2s;z-index:60}
+.sheet-mask.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .24s;z-index:61;max-height:74vh;overflow:auto}
+.sheet.show{transform:translateY(0)}
+.sheet h3{font-size:15px;font-weight:800;margin-bottom:4px}
+.sheet p{font-size:11.5px;color:#8a91a5;line-height:1.7;margin-bottom:10px}
+.vrow{display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:11px;border:1px solid #eef1f6;margin-bottom:7px;cursor:pointer}
+.vrow.sel{border-color:#b9c4ff;background:#f6f8ff}
+.vrow .vname{flex:1;min-width:0;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vtag{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;background:#eef7ee;color:#15803d;flex:0 0 auto}
+.vtag.plain{background:#f1f2f6;color:#8a91a5}
+.vplay{width:30px;height:30px;border-radius:9px;border:1px solid #e5e7eb;background:#fff;font-size:14px;cursor:pointer;flex:0 0 auto}
 
 /* 提示与原句 */
 .hint{margin-top:10px;padding:11px 13px;border-radius:10px;background:#fffbf3;border:1px solid #fde9c8;font-size:13.5px;color:#8a6a2f;line-height:1.7;display:none}
@@ -128,7 +149,8 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div id="dlgList"></div>
 
     <p class="intro" style="text-align:center;margin-top:14px;color:#a3a9ba">
-      整句朗读走手机自带的语音引擎，<br>声音不如单词的真人录音自然，但练连读够用。
+      整句朗读用手机自带语音引擎，靠断句、停顿、语气做得像真人在说话。<br>
+      音色好坏取决于你的手机，嫌不够自然就点「🎙 换声音」挑一个。
     </p>
   </div>
 
@@ -143,10 +165,16 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div class="track"><div class="fill" id="progFill" style="width:0"></div></div>
 
     <div class="card">
+      <div class="who">
+        <span class="who-badge" id="whoBadge">A</span>
+        <span class="who-txt" id="whoTxt">第一个人</span>
+        <span class="dots" id="dots"></span>
+      </div>
       <button class="play-big" id="playBig">🔊 点这里听第 1 句<small>反复听不扣分，听懂了再写</small></button>
       <div class="tools">
         <button class="tool" id="slowBtn">🐢 正常语速</button>
         <button class="tool" id="hintBtn">💡 看中文提示</button>
+        <button class="tool" id="voiceBtn">🎙 换声音</button>
       </div>
       <div class="hint" id="hintBox"></div>
       <div class="warn" id="noVoice">
@@ -192,6 +220,15 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 
 <div class="toast" id="toast"></div>
 
+<div class="sheet-mask" id="mask"></div>
+<div class="sheet" id="voiceSheet">
+  <h3>换一个声音</h3>
+  <p>同一句话，不同手机自带的声音差别很大。排在前面的是这台设备上最自然的英文音色，点一下先试听。</p>
+  <div id="voiceList"></div>
+  <button class="tool" id="sheetClose" style="width:100%;margin-top:4px">收起</button>
+</div>
+
+<script src="prosody.js"></script>
 <script src="tts.js"></script>
 <script src="dictation.js"></script>
 <script src="dialogues.js"></script>
@@ -213,6 +250,7 @@ function saveBest(id,info){
 const PREF="vq_dict_slow";
 let slow=false;
 try{slow=localStorage.getItem(PREF)==="1";}catch(e){}
+const RATE_NORMAL=1, RATE_SLOW=0.8;   // 正常速才是自然速；慢速只作为听不清时的拐杖
 
 /* ================= 列表 ================= */
 const LV_TEXT={1:"日常",2:"校园生活",3:"进阶"};
@@ -271,34 +309,111 @@ function renderLine(){
   const sm=document.createElement("small");
   sm.textContent="反复听不扣分，听懂了再写";
   $("playBig").appendChild(sm);
+  $("playBig").classList.remove("playing");
+  paintWho(L);
+  paintDots(L);
   paintSlow();
   setTimeout(()=>{ if($("ansInput").disabled===false) $("ansInput").focus(); },80);
 }
 
+/* 谁在说话：A / B 两种声线，听起来是两个人，不是一个人在念稿 */
+function paintWho(L){
+  const b=L.sp==="B";
+  $("whoBadge").textContent=b?"B":"A";
+  $("whoBadge").className="who-badge"+(b?" b":"");
+  $("whoTxt").textContent=(b?"B":"A")+" 说";
+}
+
+/* 气口提示：一句话里有几口气就几个点，播到哪亮到哪。
+   只露节奏、不露词，所以不算泄题，但能让人跟得上句子走到哪了。 */
+function paintDots(L){
+  const box=$("dots");box.innerHTML="";
+  const plan=window.VQProsody?VQProsody.planLine(L.en,{speaker:L.sp,speed:slow?RATE_SLOW:RATE_NORMAL}):null;
+  const n=plan?plan.segments.length:1;
+  for(let i=0;i<n;i++){
+    const d=document.createElement("span");
+    d.className="dot";
+    box.appendChild(d);
+  }
+}
+function lightDots(i){
+  [...$("dots").children].forEach((d,k)=>d.classList.toggle("on",k===i));
+}
+function clearDots(){[...$("dots").children].forEach(d=>d.classList.remove("on"));}
+
 function paintSlow(){
-  $("slowBtn").textContent=slow?"🐢 慢速 0.75×":"🐢 正常语速";
+  $("slowBtn").textContent=slow?"🐢 慢速 0.8×":"🐢 正常语速";
   $("slowBtn").classList.toggle("on",slow);
 }
 
 /* ================= 播放 ================= */
 function playLine(){
-  if(!D||playing)return;
+  if(!D)return;
+  if(playing){stopPlay();return;}
   const L=D.lines[idx];
-  if(!window.VQSpeech||typeof VQSpeech.speakSentence!=="function"){
+  if(!window.VQSpeech||typeof VQSpeech.speakDialogue!=="function"){
     $("noVoice").classList.add("show");
     return;
   }
   playing=true;
   $("playBig").classList.add("playing");
-  $("playBig").textContent="🔊 正在播…";
-  VQSpeech.speakSentence(L.en,{rate:slow?0.75:0.9,onDone:(ok,reason)=>{
-    playing=false;
-    $("playBig").classList.remove("playing");
-    $("playBig").textContent=ok?"🔊 再听一次":"🔇 没声音，点这里重试";
-    if(!ok&&reason!=="interrupted"){
-      $("noVoice").classList.add("show");
+  $("playBig").textContent="⏹ 正在播…（点一下停）";
+  VQSpeech.speakDialogue(L.en,{
+    speaker:L.sp,
+    speed:slow?RATE_SLOW:RATE_NORMAL,
+    onSegment:i=>lightDots(i),
+    onDone:(ok,reason)=>{
+      playing=false;
+      clearDots();
+      $("playBig").classList.remove("playing");
+      $("playBig").textContent=ok?"🔊 再听一次":"🔇 没声音，点这里重试";
+      if(!ok&&reason!=="interrupted")$("noVoice").classList.add("show");
     }
-  }});
+  });
+}
+function stopPlay(){
+  playing=false;
+  clearDots();
+  if(window.VQSpeech&&VQSpeech.stopDialogue)VQSpeech.stopDialogue();
+  $("playBig").classList.remove("playing");
+  $("playBig").textContent="🔊 再听一次";
+}
+
+/* ================= 换声音 ================= */
+function openSheet(){
+  const box=$("voiceList");box.innerHTML="";
+  const info=(window.VQSpeech&&VQSpeech.dialogueVoices)?VQSpeech.dialogueVoices():{options:[]};
+  const list=info.options||[];
+  if(!list.length){
+    box.innerHTML=`<p style="color:#9a5b13;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px">这台设备没有可用的英文语音。到系统设置里下载一个英文语音包，或者换 Chrome / Edge / Safari 打开。</p>`;
+  }else{
+    const cur=VQSpeech.getDialogueVoice?VQSpeech.getDialogueVoice():"";
+    list.slice(0,12).forEach((v,ix)=>{
+      const row=document.createElement("div");
+      row.className="vrow"+((v.name===cur||(!cur&&ix===0))?" sel":"");
+      row.innerHTML=`<span class="vname">${esc(v.name)}</span>
+        <span class="vtag ${v.natural?"":"plain"}">${v.natural?"自然":(v.local?"本地":"云端")}</span>
+        <button class="vplay">▶</button>`;
+      row.querySelector(".vplay").onclick=e=>{
+        e.stopPropagation();
+        if(VQSpeech.previewVoice)VQSpeech.previewVoice(v.name,"Excuse me, could you tell me how to get to the library?");
+      };
+      row.onclick=()=>{
+        if(VQSpeech.setDialogueVoice)VQSpeech.setDialogueVoice(v.name);
+        [...box.children].forEach(c=>c.classList.remove("sel"));
+        row.classList.add("sel");
+        toast("已换成这个声音");
+        if(VQSpeech.previewVoice)VQSpeech.previewVoice(v.name,"Sure. Go straight down this road and turn left at the bank.");
+      };
+      box.appendChild(row);
+    });
+  }
+  $("mask").classList.add("show");
+  $("voiceSheet").classList.add("show");
+}
+function closeSheet(){
+  $("mask").classList.remove("show");
+  $("voiceSheet").classList.remove("show");
 }
 
 /* ================= 判分 ================= */
@@ -366,9 +481,13 @@ $("slowBtn").onclick=()=>{
   slow=!slow;
   try{localStorage.setItem(PREF,slow?"1":"0");}catch(e){}
   paintSlow();
-  toast(slow?"慢速模式：0.75 倍速":"恢复正常语速");
+  toast(slow?"慢速 0.8×：听不清时用，别一直用":"恢复正常语速");
+  stopPlay();
   playLine();
 };
+$("voiceBtn").onclick=openSheet;
+$("sheetClose").onclick=closeSheet;
+$("mask").onclick=closeSheet;
 $("hintBtn").onclick=()=>{
   if(!D)return;
   const box=$("hintBox");
@@ -383,6 +502,7 @@ $("ansInput").addEventListener("keydown",e=>{
 });
 $("nextLine").onclick=()=>{
   if(idx+1>=D.lines.length){finishAll();return;}
+  stopPlay();
   idx++;
   renderLine();
   playLine();     // 点「下一句」的同一个手势里播放，iOS 才肯出声
@@ -391,6 +511,7 @@ $("backList").onclick=()=>{
   if(results.length&&results.filter(Boolean).length<D.lines.length){
     if(!confirm("这一段的听写还没做完，退出不记录成绩，确定？"))return;
   }
+  stopPlay();
   renderList();show("listView");
 };
 $("doneBack").onclick=()=>{

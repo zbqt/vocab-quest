@@ -503,3 +503,59 @@ test("听力专练取词：学过的词不够时返回多少算多少，不拿�
   const picked = VQ.listeningWords(s, zhWords, { n: 12 });
   assert.equal(picked.length, 1);
 });
+
+/* ================= 听音辨汉语：同音词与「没听到」 ================= */
+
+const homoWords = [
+  ["see", "v. 看见", "siː"],
+  ["sea", "n. 大海", "siː"],
+  ["piece", "n. 一块", "piːs"],
+  ["peace", "n. 和平", "piːs"],
+  ["book", "n. 书", "bʊk"],
+  ["desk", "n. 书桌", "desk"]
+];
+
+test("听音辨汉语：同音词不能进选项，否则一道题两个正确答案", () => {
+  // 听到 /siː/ 选「看见」和选「大海」都算听对了，这题就没法判
+  for (let i = 0; i < 20; i++) {
+    const q = VQ.buildQuestion(homoWords[0], 0, { forceType: "listenZh", pool: homoWords });
+    assert.equal(q.answer, "v. 看见");
+    assert.ok(!q.options.includes("n. 大海"), "同音词 sea 不该出现在选项里：" + q.options.join("|"));
+    assert.equal(new Set(q.options).size, q.options.length);
+  }
+});
+
+test("听音辨汉语：答案的同音词会被点名，告诉用户「光靠声音分不出来」", () => {
+  const q = VQ.buildQuestion(homoWords[0], 0, { forceType: "listenZh", pool: homoWords });
+  assert.deepEqual(q.homophones, ["sea"]);
+});
+
+test("看英文选中文不受同音影响：词形已经限定答案，同音词可以当干扰项", () => {
+  const q = VQ.buildQuestion(homoWords[0], 0, { forceType: "lookZh", pool: homoWords });
+  assert.equal(q.prompt, "see");
+  assert.equal(q.answer, "v. 看见");
+});
+
+test("听音选词同样排除同音词：听到 /siː/ 时 see 和 sea 都在选项里等于没法答", () => {
+  for (let i = 0; i < 20; i++) {
+    const q = VQ.buildQuestion(homoWords[0], 0, { forceType: "listen", pool: homoWords });
+    assert.equal(q.type, "listen");
+    assert.ok(!q.options.includes("sea"), "同音词不该进选项：" + q.options.join("|"));
+    assert.ok(q.options.includes("see"));
+  }
+});
+
+test("看中文选英文时同音词可以留下（题干已经说明是哪个词义）", () => {
+  const q = VQ.buildQuestion(homoWords[0], 0, { forceType: "", pool: homoWords, spellEvery: 0 });
+  assert.equal(q.type, "match");
+  assert.equal(q.answer, "see");
+  assert.equal(q.options.length, 4, "四选一");
+  assert.equal(new Set(q.options).size, 4, "选项不能重复");
+  assert.ok(q.options.includes("see"));
+});
+
+test("音标写法不同但同音，也要被认出来", () => {
+  assert.equal(VQ.soundKey("ˈsiː"), VQ.soundKey("si"));
+  assert.equal(VQ.soundKey("/piːs/"), VQ.soundKey("piːs"));
+  assert.notEqual(VQ.soundKey("siː"), VQ.soundKey("sɪ"));
+});

@@ -1,6 +1,6 @@
 {
   "name": "vocab-quest",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "description": "考试词汇记忆引擎：FSRS-5 调度 + 纯静态站 + 浏览器原生 TTS",
   "main": "engine.js",
@@ -19,6 +19,7 @@
     "vocab_c6.js",
     "vocab_cz.js",
     "vocab_gz.js",
+    "prosody.js",
     "tts.js",
     "stats.js",
     "cloud-sync.js",
@@ -26,7 +27,7 @@
     "dialogues.js"
   ],
   "scripts": {
-    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/dictation.test.mjs test/cloud.test.mjs test/e2e.test.mjs",
+    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/prosody.test.mjs test/dictation.test.mjs test/cloud.test.mjs test/e2e.test.mjs",
     "serve": "node tools/serve.mjs",
     "audit:data": "node tools/audit.mjs .",
     "fill:phonetic": "node tools/fill-phonetic.mjs .",

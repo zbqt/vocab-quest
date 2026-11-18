@@ -43,6 +43,19 @@
   var DAILY_TOTAL = 20;
   var DAILY_NEW = 15;
   var DAILY_NEW_FLOOR = 8;
+
+  /* 音标比较键：判断两个词「听起来是不是同一个音」。
+   * 词库里的音标写法不统一（重音符号、长音符、斜杠都可能差），
+   * 直接比字符串会把 see / sea 判成不同音，于是同音词双双进选项 —— 一道题两个正确答案。 */
+  function soundKey(ph) {
+    return String(ph == null ? "" : ph)
+      .toLowerCase()
+      .replace(/[\/\[\]()]/g, "")
+      .replace(/[ˈˌ'’\-.\s]/g, "")
+      .replace(/ː/g, "")
+      .replace(/ɜr/g, "ər")
+      .replace(/əʊ/g, "oʊ");
+  }
   // 定级测试默认：6 层 × 7 题 = 42 题，约 3 分钟
   var PLACEMENT_BANDS = 6;
   var PLACEMENT_PER_BAND = 7;
@@ -756,14 +769,19 @@
     // lookZh 是它的无声形态（看英文选中文），也是这台设备放不出声时的降级目标——
     // 降级只该丢掉「声音」，不该把题变成另一个认知任务。
     if (force === "listenZh" || force === "lookZh") {
+      var ansKey = soundKey(ph);
       var zhOpts = [zh];
       var seenZh = {};
       seenZh[zh] = 1;
       var zhPool = rng(pool || []);
       for (var zi = 0; zi < zhPool.length && zhOpts.length < 4; zi++) {
-        var z = zhPool[zi] && zhPool[zi][1];
+        var zc = zhPool[zi];
+        var z = zc && zc[1];
         // 释义完全相同 = 两个正确答案，必须去重
         if (!z || seenZh[z]) continue;
+        // 同音词不能当干扰项：声音一样，两个中文都算「听得对」，这题就没有唯一答案。
+        // see / sea、peace / piece 这种在四六级词库里真不少（共 106 组）。
+        if (ansKey && soundKey(zc[2]) === ansKey) continue;
         seenZh[z] = 1;
         zhOpts.push(z);
       }
@@ -774,24 +792,40 @@
         }
         return { en: f ? f[0] : "", zh: o, ph: f ? (f[2] || "") : "" };
       });
+      // 答案词在词库里有没有同音词？有就在答完后明确告诉用户「这题只靠声音分不出来」，
+      // 不装作没有歧义，也不让用户以为自己听错了。
+      var homo = [];
+      if (ansKey) {
+        for (var hi = 0; hi < (pool || []).length; hi++) {
+          var hw = pool[hi];
+          if (hw && hw[0] !== en && soundKey(hw[2]) === ansKey) homo.push(hw[0]);
+        }
+      }
       return {
         type: force === "lookZh" ? "lookZh" : "listenZh",
         en: en, zh: zh, ph: ph,
         prompt: force === "lookZh" ? en : "",   // lookZh 露词形，listenZh 只给声音
         answer: zh,                              // 答案和选项都是中文
         options: rng(zhOpts),
-        optDefs: zhDefs
+        optDefs: zhDefs,
+        homophones: homo
       };
     }
 
     // 干扰项去重：跨词库合并后的池子里同一个词可能出现多次，
     // 不去重会出现「两个选项一模一样」，对听音题尤其致命（听到 A，选哪个 A？）
+    var audition = force ? force === "listen"
+      : (listenEvery > 0 && (index + 1) % listenEvery === 0);
+    var enKey = soundKey(ph);
     var seenOpt = {};
     seenOpt[en] = 1;
     var cands = [];
     for (var pi = 0; pi < pool.length; pi++) {
       var cand = pool[pi] && pool[pi][0];
       if (!cand || seenOpt[cand]) continue;
+      // 听音选词里，同音词（see / sea）同样是「两个正确答案」，
+      // 只能从选项里拿掉；看中文选英文不受影响，因为题干已经限定了词义。
+      if (audition && enKey && soundKey(pool[pi][2]) === enKey) continue;
       seenOpt[cand] = 1;
       cands.push(cand);
     }
@@ -806,9 +840,7 @@
     // 听音选词：题干是「声音」而不是文字，选项仍是 4 个英文单词。
     // 这是唯一一条考「声音 → 词」通路的题型，对应四六级听力的最底层能力。
     // 不显示英文、不显示音标、不显示中文 —— 否则等于直接给答案。
-    var wantListen = force
-      ? force === "listen"
-      : (listenEvery > 0 && (index + 1) % listenEvery === 0);
+    var wantListen = audition;
 
     if (wantListen) {
       return {
@@ -1005,6 +1037,7 @@
     buildQuestion: buildQuestion,
     buildSession: buildSession,
     listeningWords: listeningWords,
+    soundKey: soundKey,
     appendEvent: appendEvent,
     seededShuffle: seededShuffle
   };

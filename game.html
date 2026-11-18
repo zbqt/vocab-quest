@@ -282,6 +282,15 @@ body.shuf .listen-row .level-id{color:#f59e0b}
       <button class="btn btn-warm" id="rescueBtn">练 0 词</button>
     </div>
 
+    <!-- 听音辨汉语：全库入口。按单元练到后期会开始重复，耳朵需要更大的词面 -->
+    <div class="review-card" style="background:linear-gradient(135deg,#f5f3ff,#faf8ff);border-color:#ddd6fe">
+      <div>
+        <h3>🎧 听音辨汉语</h3>
+        <p id="listenAllDesc">只放声音，选项全是汉语；练「听到就直接懂」这条直路</p>
+      </div>
+      <button class="btn btn-warm" id="listenAllBtn">开练</button>
+    </div>
+
     <!-- 长对话听写：整段听力，跟单词语音是两回事，单独一个入口 -->
     <div class="review-card" style="background:linear-gradient(135deg,#fff7ed,#fffbeb);border-color:#fed7aa">
       <div>
@@ -301,7 +310,7 @@ body.shuf .listen-row .level-id{color:#f59e0b}
       <span style="font-size:11px;color:#9ca3af">想按单元刷就点这里 · 通关后可复习/测试</span>
     </div>
     <div id="unitContainer"></div>
-    <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 听音选义 + 语法 · 每关覆盖全部单词<br>每个单元底部有 🎧 听力专练：只从学过的词里抽题，专练「声音 → 意思」<span class="kbd-tip"> · 键盘 1-4 选选项、回车下一题、P 发音</span></div>
+    <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 听音辨汉语 + 语法 · 每关覆盖全部单词<br>🎧 听音辨汉语：只从学过的词里抽题，练「声音 → 汉语意思」这条直路<span class="kbd-tip"> · 键盘 1-4 选选项、回车下一题、P 发音</span></div>
     <div style="text-align:center;margin-top:10px"><a href="index.html" style="color:#5b6cff;font-weight:700;font-size:13px;text-decoration:none">← 返回词库中心首页</a></div>
     <div style="text-align:center;margin-top:6px;display:flex;gap:8px;justify-content:center">
       <button class="btn btn-ghost" id="expBtn">导出存档</button>
@@ -546,8 +555,9 @@ function playWord(en,opts){
   speakWord(en,(ok,reason)=>{
     if(my!==audioToken)return;
     if(ok){setState("🔊 重新播放","",false);return;}
-    // 听音题靠"有没有声音"决定题目怎么呈现，所以失败要先通知它，再谈界面文案
-    if(opts.onFail)opts.onFail(reason);
+    // 听音题靠"有没有声音"决定题目怎么呈现，所以失败要先通知它，再谈界面文案。
+    // onFail 返回 true 表示「它已经改写了题目并自己说明了原因」，这里就不要再盖一层报错文案。
+    if(opts.onFail&&opts.onFail(reason)===true)return;
     // 答题后自动朗读不在用户手势里，iOS 会以 not-allowed 拦下；这种不打扰用户，喇叭仍可点
     if(opts.auto&&reason==="not-allowed"){setState("🔊 播放发音","",false);return;}
     const advice=window.VQSpeech?VQSpeech.reasonText(reason):"这台设备的语音引擎不可用，可换个浏览器试试";
@@ -690,6 +700,18 @@ function renderHome(){
       $("rescueDesc").textContent="答错过的 "+rw.length+" 个词，趁热再来一遍最快记住";
     }else rc.style.display="none";
   }
+  // 听音辨汉语（全库）：学过的词不够就不出现按钮，免得点进去只有三四道题
+  const lb=$("listenAllBtn");
+  if(lb){
+    const all=allLearned().length;
+    if(all>=LISTEN_MIN){
+      lb.disabled=false;lb.style.opacity=1;
+      $("listenAllDesc").textContent=`从全库 ${all} 个学过的词里随机抽 ${Math.min(LISTEN_N,all)} 个 · 只考「声音→汉语」`;
+    }else{
+      lb.disabled=true;lb.style.opacity=.45;
+      $("listenAllDesc").textContent=`学过的词还不够（${all}/${LISTEN_MIN}），先闯几关`;
+    }
+  }
   $("hpText").textContent=S.hp;
   $("lvText").textContent=S.lv;
   $("coinText").textContent=S.coin;
@@ -773,10 +795,10 @@ function renderListenLevel(u){
   const starHtml=stars?`<span class="stars">${"★".repeat(stars)}${"☆".repeat(3-stars)}</span>`:"";
   row.innerHTML=`<div class="level-id">🎧</div>
     <div class="level-info">
-      <h4>听力专练 · 听音选义</h4>
+      <h4>听力专练 · 听音辨汉语</h4>
       <p>${open
         ? (stars?`最好成绩 ${starHtml} · 从 ${learned} 个学过的词里抽 ${Math.min(LISTEN_N,learned)} 个`
-                :`从学过的 ${learned} 个词里随机抽 ${Math.min(LISTEN_N,learned)} 个 · 只考「声音→意思」`)
+                :`从学过的 ${learned} 个词里随机抽 ${Math.min(LISTEN_N,learned)} 个 · 只考「声音→汉语」`)
         : `学过的词还不够（${learned}/${LISTEN_MIN}），先闯几关`}</p>
     </div>
     <div class="actions"></div>`;
@@ -789,21 +811,45 @@ function startListening(uId){
   const picked=VQ.listeningWords(S,POOLS[uId],{n:LISTEN_N});
   if(picked.length<4){toast("这个单元学过的词还不够，先闯几关再来练听力");return;}
   const words=shuffle(picked);
+  launchListening(words,POOLS[uId],uId);
+}
+/* 全库模式：把当前词库里所有单元的学过的词合起来抽。
+   为什么不按单元发散题：一个单元练到后期会开始重复，耳朵需要更大的词面。
+   但生词仍然不进 —— 听音题拿生词出，只能瞎蒙。 */
+function allLearned(){
+  let out=[];
+  Object.keys(POOLS).forEach(k=>{
+    POOLS[k].forEach(w=>{
+      const ws=S.words[w[0]];
+      if(ws&&((ws.seen||0)>0||(ws.reps||0)>0))out.push(w);
+    });
+  });
+  // 跨单元同一个词可能重复（乱序词库尤其），按词形去重
+  const seen={};out=out.filter(w=>{if(seen[w[0]])return false;seen[w[0]]=1;return true;});
+  return out;
+}
+function startListeningAll(){
+  const pool=allLearned();
+  if(pool.length<LISTEN_MIN){toast("学过的词还不够，先闯几关再来练听力");return;}
+  const picked=shuffle(pool).slice(0,LISTEN_N);
+  launchListening(picked,pool,0);
+}
+function launchListening(words,pool,uId){
   const sess=VQ.buildSession({
     words:words,
     wordTypes:words.map(()=>"listenZh"),
-    grammar:[],grammarN:0,spellEvery:0,mode:"listen",pool:POOLS[uId]
+    grammar:[],grammarN:0,spellEvery:0,mode:"listen",pool:pool
   });
   G={
     u:uId,l:0,mode:"listen",listen:true,daily:false,rescue:false,shuf:S.shufMode,
     src:words.map(w=>w[0]),qs:sess.questions,passNeed:sess.passNeed,
     idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
-    combo:0,correctWords:[],wrongList:[],skipped:0
+    combo:0,correctWords:[],wrongList:[],skipped:0,degraded:0
   };
-  $("modeTag").textContent="🎧 听力专练";
+  $("modeTag").textContent="🎧 听音辨汉语";
   $("modeTag").className="mode-tag review";
-  $("levelTitle").textContent=S.shufMode?`乱序第${uId}段 · 听力`:`第${uId}单元 · 听力`;
-  $("gameHint").textContent=`${sess.total} 题全是听音选义 · 不扣体力 · 每次随机抽词`;
+  $("levelTitle").textContent=uId>0?(S.shufMode?`乱序第${uId}段 · 听力`:`第${uId}单元 · 听力`):"全库听力";
+  $("gameHint").textContent=`${sess.total} 题全是听音辨汉语 · 不扣体力 · 每次随机抽词`;
   show("gameView");renderQ();
 }
 
@@ -859,25 +905,29 @@ function start(u,l,mode){
 function degradeListen(){
   const q=G.qs&&G.qs[G.idx];
   if(!q||q.degraded)return false;
-  if(q.type==="listen"){
-    q.degraded=true;
-    q.dir="listen";        // 记忆方向仍记在听觉通路上，别因为设备不行就算成认词
-    q.type="match";
-    q.prompt=q.zh;
-    $("cnWord").textContent=q.zh;
-    $("enemyLabel").textContent="👾 选择正确的英文单词";
-    $("qTitle").textContent="这台设备放不出声音，已改成看中文选单词";
-  }else if(q.type==="listenZh"){
-    q.degraded=true;
-    q.dir="listen";
+  if(q.type!=="listen"&&q.type!=="listenZh")return false;
+  const wasZh=q.type==="listenZh";
+  q.degraded=true;
+  q.type0=q.type;      // 留底：结算时要能说清「原题是什么、为什么没判」
+  // 关键：不把方向硬记成 listen。设备根本没出声，这场就没有发生听觉辨认，
+  // 记到听觉通路上等于给掌握度注水，用户回头会发现「听力说自己会了，其实没听过」。
+  delete q.dir;
+  if(wasZh){
     q.type="lookZh";
     q.prompt=q.en;
     $("cnWord").textContent=q.en;
-    $("enemyLabel").textContent="👾 看英文选中文";
-    $("qTitle").textContent="这台设备放不出声音，已改成看英文选中文";
-    showAudio(q.en,q.ph);  // 词形都已经露了，音标没有泄题问题
-  }else return false;
-  $("audioStatus").textContent="听音题已降级";
+    $("enemyLabel").textContent="👾 看英文选中文（本题听音未成立）";
+    $("qTitle").textContent="这台设备放不出声音，本题改成看英文选中文，且不计入听力判定";
+    showAudio(q.en,q.ph);   // 词形已经露了，音标不算泄题
+  }else{
+    q.type="match";
+    q.prompt=q.zh;
+    $("cnWord").textContent=q.zh;
+    $("enemyLabel").textContent="👾 选择正确的英文单词（本题听音未成立）";
+    $("qTitle").textContent="这台设备放不出声音，本题改成看中文选单词，且不计入听力判定";
+  }
+  $("audioStatus").textContent="设备无声 · 本题未计入听力判定";
+  G.degraded=(G.degraded||0)+1;
   return true;
 }
 function renderQ(){
@@ -889,16 +939,16 @@ function renderQ(){
   G.qStart=Date.now();
   const isZhOpt=q.type==="listenZh"||q.type==="lookZh";
   $("cnWord").textContent=q.type==="listen"?"🎧 听发音，选出你听到的单词"
-    :q.type==="listenZh"?"🎧 听发音，选出它的中文意思"
+    :q.type==="listenZh"?"🎧 听发音，辨出它的汉语意思"
     :q.prompt;
   $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战"
     :q.type==="listen"?"🎧 听音选词"
-    :q.type==="listenZh"?"🎧 听音选义"
+    :q.type==="listenZh"?"🎧 听音辨汉语"
     :q.type==="lookZh"?"👾 看英文选中文"
     :(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词");
   $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项"
     :q.type==="listen"?"听不清可以多点几次，答案就藏在声音里"
-    :q.type==="listenZh"?"先直奔意思，别在心里先拼一遍——考试就是这么听的"
+    :q.type==="listenZh"?"先直奔汉语，别在心里先拼一遍——考试就是这么听的"
     :q.type==="lookZh"?"看见就懂，不用在心里先翻译两遍"
     :(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词");
   $("qcount").textContent=(G.idx+1)+"/"+T;
@@ -945,9 +995,9 @@ function renderQ(){
       playWord(q.en,{auto:true,onFail:(reason)=>{
         if(reason==="not-allowed"){
           $("audioStatus").textContent="点一下上面的扬声器开始播放";
-          return;
+          return true;
         }
-        degradeListen();
+        return degradeListen();
       }});
     },120);
   }
@@ -973,7 +1023,10 @@ function pickMatch(btn,val){
   buttons.forEach(b=>b.disabled=true);
   if(val===q.answer){
     btn.classList.add("correct");G.correct++;G.combo++;if(q.en)G.correctWords.push(q.en);
-    $("feedback").textContent="✔ 正确！";$("feedback").className="feedback good";
+    $("feedback").textContent=(q.type==="listenZh"||q.type==="lookZh")
+      ? `✔ ${q.degraded?"这个词是":"这个音是"} ${q.en}${q.ph?" /"+q.ph+"/":""} → ${q.zh}`
+      : "✔ 正确！";
+    $("feedback").className="feedback good";
   }else{
     btn.classList.add("wrong");
     buttons.forEach(b=>{if(b.textContent===q.answer)b.classList.add("correct");});
@@ -981,6 +1034,13 @@ function pickMatch(btn,val){
   }
   if(q.tip)$("feedback").textContent+="　📌 "+q.tip;
   if(q.optDefs)renderOptDefs(q.optDefs,q.answer,val,q.type==="listenZh"||q.type==="lookZh");
+  // 听音辨汉语的两条「说清楚」：
+  // 1) 这个音在词库里还有同音词 —— 光听声音本来就分不出来，得说，别让人以为是自己听错；
+  // 2) 设备根本没出声 —— 这题没有发生听觉辨认，明说未计入，不冒充成绩。
+  if(q.homophones&&q.homophones.length&&(q.type==="listenZh"||q.type==="lookZh"||q.degraded)){
+    $("feedback").textContent+=`　📌 ${q.homophones.slice(0,2).join(" / ")} 与它同音，光靠声音分不出来，这题按词义判`;
+  }
+  if(q.degraded)$("feedback").textContent+="　⚠️ 本题设备没出声，未计入听力判定";
   if(q.en){
     showAudio(q.en,q.ph);
     if(val===q.answer)playWord(q.en,{auto:true});
@@ -1066,9 +1126,10 @@ function finish(win){
   const exp=win?G.correct*15:0;const coin=win?G.correct*6:0;
   if(win){
     if(G.listen&&G.u){
-      // 听力专练单独记星，只升不降
+      // 听力专练单独记星，只升不降。
+      // 但有题因为设备不出声降级时，这一局的星级不算数 —— 没听到声音就不算练过耳朵。
       if(!S.listenPass||typeof S.listenPass!=="object")S.listenPass={};
-      if((S.listenPass[G.u]||0)<stars)S.listenPass[G.u]=stars;
+      if(!G.degraded&&(S.listenPass[G.u]||0)<stars)S.listenPass[G.u]=stars;
     }else if(G.mode!=="review"&&G.l>0){
       const map=G.shuf?S.passedS:S.passed;
       if(map[G.u][G.l]<stars)map[G.u][G.l]=stars;
@@ -1085,12 +1146,13 @@ function finish(win){
   save();
   $("resBig").textContent=win?"🎉":(G.hp<=0?"💔":"😢");
   $("resTitle").textContent=G.rescue?(win?"错词练完了":"这轮错得有点多")
-    :G.listen?(win?"听力练完了":"这轮听岔得有点多")
+    :G.listen?(!G.degraded?(win?"听力练完了":"这轮听岔得有点多"):"听力没练成")
     :G.daily?"今天的学习完成"
     :(win?(G.mode==="review"?"复习完成！":"关卡通关！"):(G.hp<=0?"体力耗尽":"再试一次吧"));
   const realCorrect=G.correct-(G.skipped||0);
   $("resSub").textContent=`正确 ${realCorrect}/${total} 题`
     +(G.skipped?`（跳过 ${G.skipped} 个）`:"")
+    +(G.degraded?` · ${G.degraded} 题因设备放不出声未计入听力判定，换 Chrome / Safari 再来`:"" )
     +(G.rescue?(G.wrong?` · 还有 ${G.wrong} 个没稳住，建议再来一轮`:" · 全部答对，错词区应该空了不少")
       :G.listen?(win?`，获得 ${stars} 星 · 听错的词再进一次听力关就补上了`:`，需答对 ${G.passNeed} 题通关`)
       :G.daily?(G.wrong?` · 答错的 ${G.wrong} 个词会再出现`:" · 全对，很稳")
@@ -1288,6 +1350,7 @@ function finishPlacement(){
 }
 $("placeBtn").onclick=startPlacement;
 $("prAgain").onclick=startPlacement;
+$("listenAllBtn").onclick=()=>{if(!$("listenAllBtn").disabled)startListeningAll();};
 $("prGo").onclick=()=>{renderHome();show("homeView");openDaily();};
 $("placeBack").onclick=()=>{P=null;renderHome();show("homeView");};
 document.addEventListener("keydown",e=>{

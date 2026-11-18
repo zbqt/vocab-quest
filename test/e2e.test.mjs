@@ -742,7 +742,8 @@ test("听音题：设备放不出声音时当场降级，不会留下一道无�
   const q = G.qs[G.idx];
   assert.equal(q.type, "match", "放不出声就必须退化成认词题");
   assert.equal(ctx.$("cnWord").textContent, "放弃", "降级后靠中文题干作答");
-  assert.match(ctx.$("qTitle").textContent, /已改成看中文/, "要跟用户说明白为什么变样了");
+  assert.match(ctx.$("qTitle").textContent, /改成看中文/, "要跟用户说明白为什么变样了");
+  assert.match(ctx.$("audioStatus").textContent, /未计入/, "没出声就不算听过，必须明说");
 
   const opt = [...ctx.doc.querySelectorAll("#optionsBox .option")].find((b) => b.textContent === "abandon");
   opt.click();
@@ -866,21 +867,42 @@ test("拼错的听音选义：词进入错词区，听力星级不写", () => {
 const LH = read("listening.html");
 const L_INLINE = LH.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
 
-function bootListening() {
+function bootListening(opts) {
+  opts = opts || {};
   const dom = new JSDOM(LH, {
     url: "http://localhost/listening.html",
     runScripts: "outside-only",
     pretendToBeVisual: true
   });
   const win = dom.window;
-  win.speechSynthesis = { cancel() {}, speak() {} };
+  // 记录每一次真正发出去的朗读，用来检查「是不是按气口分段、有没有语气差别」
+  const spoken = [];
+  const voices = opts.voices || [
+    { name: "Microsoft Aria Online (Natural)", lang: "en-US", localService: false },
+    { name: "Google US English", lang: "en-US", localService: true }
+  ];
+  win.speechSynthesis = {
+    paused: false, speaking: false, pending: false,
+    cancel() { this.speaking = false; this.pending = false; },
+    speak(u) {
+      spoken.push({ text: u.text, rate: u.rate, pitch: u.pitch, voice: u.voice ? u.voice.name : null });
+      this.speaking = true;
+      setTimeout(() => {
+        this.speaking = false;
+        if (u.onstart) u.onstart();
+        if (u.onend) u.onend();
+      }, 0);
+    },
+    getVoices() { return voices; },
+    addEventListener() {}
+  };
   win.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
   win.Audio = class { play() { return Promise.resolve(); } pause() {} load() {} };
   win.confirm = () => true;
   win.scrollTo = () => {};
-  win.eval(["tts.js", "dictation.js", "dialogues.js"].map(read).join("\n") + "\n" + L_INLINE +
-    "\nwindow.__dlg={getD:()=>D,getIdx:()=>idx,getResults:()=>results};");
-  return { dom, win, doc: win.document, $: (id) => win.document.getElementById(id) };
+  win.eval(["prosody.js", "tts.js", "dictation.js", "dialogues.js"].map(read).join("\n") + "\n" + L_INLINE +
+    "\nwindow.__dlg={getD:()=>D,getIdx:()=>idx,getResults:()=>results,go:(i)=>{idx=i;renderLine();}};");
+  return { dom, win, doc: win.document, spoken, $: (id) => win.document.getElementById(id) };
 }
 
 test("长对话听写：列表按题库渲染，点开进第一句", () => {
@@ -939,4 +961,171 @@ test("长对话听写：走完全部句子进结果页，最好成绩写进 loca
   const best = JSON.parse(ctx.win.localStorage.getItem("vq_dict_best_cafe"));
   assert.equal(best.rate, 100);
   assert.equal(ctx.$("doneLines").querySelectorAll(".sent-row").length, D.lines.length);
+});
+
+/* ================= 长对话配音：像人说话 ================= */
+
+test("一句里有两句话就分两段念，中间留白，不是一口气连读", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 500));
+
+  assert.equal(ctx.spoken.length, 2, "Good morning. / What can I get for you today? 应该是两段："
+    + ctx.spoken.map((s) => s.text).join(" | "));
+  assert.match(ctx.spoken[0].text, /Good morning/);
+  assert.match(ctx.spoken[1].text, /What can I get/);
+});
+
+test("语速不是一条直线：同一句里两段语速/音高不同，问句尾音更高", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 500));
+
+  const [a, b] = ctx.spoken;
+  assert.notEqual(a.rate, b.rate, "两段语速完全一样就是机械感来源");
+  assert.ok(b.pitch > a.pitch, `问句尾段应该更高：${a.pitch} vs ${b.pitch}`);
+  assert.ok(a.rate > 0.85 && a.rate < 1.2, "正常语速要真的接近正常，不能压到 0.75 那种拖沓感：" + a.rate);
+});
+
+test("A / B 两个人声线不同，而且用的是这台设备上最好的英文音色", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 500));
+  const aPitch = ctx.spoken[0].pitch;
+
+  ctx.win.__dlg.go(1);           // 第二句是 B 说的
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 500));
+  const bPitch = ctx.spoken[2].pitch;
+
+  assert.ok(bPitch < aPitch, `B 应该比 A 低沉：${bPitch} vs ${aPitch}`);
+  assert.match(ctx.spoken[0].voice, /Natural/, "有神经网络音色就优先用它，别用默认的机械音");
+  assert.equal(ctx.$("whoBadge").textContent, "B", "界面上要标出谁在说话");
+});
+
+test("气口圆点数量 = 这句话要念几段，正在念的那段亮起来", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  assert.equal(ctx.doc.querySelectorAll("#dots .dot").length, 2, "第一句两句号 = 两个点");
+
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(ctx.doc.querySelectorAll("#dots .dot.on").length === 1, "播放时要有一段是亮的");
+});
+
+test("慢速是整句等比放慢，点一下就能切回来", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 500));
+  const normal = ctx.spoken[0].rate;
+
+  ctx.$("slowBtn").click();
+  await new Promise((r) => setTimeout(r, 500));
+  const slow = ctx.spoken[ctx.spoken.length - 1].rate;
+  assert.ok(slow < normal, `慢速应该更慢：${slow} vs ${normal}`);
+  assert.ok(slow / normal > 0.6, "别慢成 0.5 那种，太慢会丢掉连读");
+  assert.match(ctx.$("slowBtn").textContent, /慢速/);
+});
+
+test("换声音面板会列出英文音色，选完能试听", async () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("voiceBtn").click();
+  assert.ok(ctx.$("voiceSheet").classList.contains("show"));
+
+  const rows = ctx.doc.querySelectorAll("#voiceList .vrow");
+  assert.equal(rows.length, 2);
+  assert.match(rows[0].textContent, /Natural/, "自然的排前面");
+
+  rows[1].click();
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(ctx.win.VQSpeech.getDialogueVoice(), "Google US English");
+  assert.ok(ctx.spoken.length > 0, "选中后应该立刻试听");
+});
+
+/* ================= 听音辨汉语：答案与诚实 ================= */
+
+const LISTEN_ZH_Q = {
+  type: "listenZh", en: "abandon", zh: "放弃", ph: "əˈbændən", prompt: "",
+  answer: "放弃",
+  options: ["放弃", "能力", "吸收", "抽象的"],
+  optDefs: [
+    { en: "abandon", zh: "放弃", ph: "əˈbændən" },
+    { en: "ability", zh: "能力", ph: "əˈbɪləti" },
+    { en: "absorb", zh: "吸收", ph: "əbˈsɔːb" },
+    { en: "abstract", zh: "抽象的", ph: "ˈæbstrækt" }
+  ],
+  homophones: []
+};
+
+function plantListenZh(ctx) {
+  const G = openFirstLevel(ctx);
+  G.qs[G.idx] = Object.assign({}, LISTEN_ZH_Q, {
+    options: LISTEN_ZH_Q.options.slice(), optDefs: LISTEN_ZH_Q.optDefs.slice()
+  });
+  ctx.win.renderQ();
+  return G;
+}
+
+test("听音辨汉语答对后把「听到的是哪个词」写出来，不只说「正确」", () => {
+  const ctx = boot("cet4");
+  const G = plantListenZh(ctx);
+  const q = G.qs[G.idx];
+
+  const opt = [...ctx.doc.querySelectorAll("#optionsBox .option")].find((b) => b.textContent === q.answer);
+  opt.click();
+
+  const fb = ctx.$("feedback").textContent;
+  assert.match(fb, /这个音是/, "要指出听到的词：" + fb);
+  assert.ok(fb.includes(q.en), "必须给出英文词形");
+  assert.ok(fb.includes(q.zh), "必须给出汉语意思");
+});
+
+test("设备放不出声时不假装听过：听力星级不记，结算明说未计入", async () => {
+  const ctx = boot("cet4");
+  playThrough(ctx);
+  ctx.$("resHome").click();
+
+  const row = ctx.doc.querySelector(".listen-row");
+  [...row.querySelectorAll(".btn")].find((b) => b.textContent === "开始").click();
+
+  delete ctx.win.Audio;
+  delete ctx.win.speechSynthesis;
+  delete ctx.win.SpeechSynthesisUtterance;
+  ctx.api.getG().idx = 0;
+  ctx.win.renderQ();
+
+  await new Promise((r) => setTimeout(r, 400));
+  const G = ctx.api.getG();
+  assert.ok(G.degraded > 0, "必须记下这一局有题没出声：" + G.degraded);
+
+  let guard = 0;
+  while (!ctx.api.getG().finished && guard++ < 30) answerCurrent(ctx, true);
+
+  assert.equal(ctx.api.getS().listenPass[1], undefined, "没听到声音就不该记听力星级");
+  assert.match(ctx.$("resSub").textContent, /未计入听力判定/, "结算要把这件事说清楚");
+});
+
+test("首页有全库听音辨汉语入口：学过的词不够时锁着，够了从全库抽", () => {
+  const ctx = boot("cet4");
+  assert.ok(ctx.$("listenAllBtn"), "首页要有这个入口");
+  assert.equal(ctx.$("listenAllBtn").disabled, true, "一个词没学先别让点");
+  assert.match(ctx.$("listenAllDesc").textContent, /学过的词还不够/);
+
+  playThrough(ctx);
+  ctx.$("resHome").click();
+  assert.equal(ctx.$("listenAllBtn").disabled, false, "学过一关就该能开练");
+  assert.match(ctx.$("listenAllDesc").textContent, /全库/);
+
+  ctx.$("listenAllBtn").click();
+  const G = ctx.api.getG();
+  assert.equal(G.listen, true);
+  assert.equal(G.u, 0, "全库模式不属于任何一个单元");
+  assert.ok(G.qs.length >= 4);
+  G.qs.forEach((q) => assert.equal(q.type, "listenZh"));
 });

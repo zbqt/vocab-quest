@@ -39,7 +39,7 @@ gz:[
  {q:"The doctor suggested that he ___ more exercise.",options:["takes","take","will take","took"],a:"take",tip:"suggest 后接虚拟语气 (should) + 动词原形"},
  {q:"Hardly ___ home when it began to rain.",options:["I got","did I get","had I got","I had got"],a:"had I got",tip:"Hardly...when 句型用部分倒装且用过去完成时"},
  {q:"The teacher told us ___ talk in class.",options:["don't","not to","to not","no"],a:"not to",tip:"tell sb not to do 否定式"},
- {q:"By the time he arrived, the meeting ___ for ten minutes.",options:["began","had begun","has begun","was beginning"],a:"had begun",tip:"过去的过去用过去完成时"},
+ {q:"By the time he arrived, the meeting ___ for ten minutes.",options:["began","had been on","has begun","was beginning"],a:"had been on",tip:"begin 是瞬间动作，不能接 for ten minutes；表示「已经开始了十分钟」要用延续性的 be on，且早于 arrived，所以是 had been on"},
  {q:"It was in the park ___ I met her for the first time.",options:["which","that","where","when"],a:"that",tip:"强调句型 It is/was...that..."},
  {q:"The problem is ___ we can finish it on time.",options:["that","what","whether","which"],a:"whether",tip:"表语从句中表示是否用 whether"},
  {q:"Only in this way ___ make progress.",options:["you can","can you","you will","did you"],a:"can you",tip:"Only + 状语位于句首，主句部分倒装"},
