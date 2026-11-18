@@ -9,7 +9,7 @@ const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (f) => fs.readFileSync(path.join(DIR, f), "utf8");
 const HTML = read("game.html");
 const INLINE = HTML.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
-const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "fsrs.js", "engine.js", "cloud-sync.js"];
+const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "dictation.js", "fsrs.js", "engine.js", "cloud-sync.js"];
 
 function boot(cat = "cet4", opts = {}) {
   const dom = new JSDOM(HTML, {
@@ -32,7 +32,10 @@ function boot(cat = "cet4", opts = {}) {
 
   // 必须一次性 eval：`const VOCAB_CZ` 这类顶层常量在多次 eval 之间不共享
   win.eval(DATA_FILES.map(read).join("\n") + "\n" + INLINE +
-    "\nwindow.__t={getS:()=>S,getG:()=>G,getP:()=>P,cfg:CFG};");
+    '\nwindow.__t={getS:()=>S,getG:()=>G,getP:()=>P,cfg:CFG,getBank:()=>BANK,'
+    + 'norm:(w)=>VQDictation.normalizeWords(w)[0],'
+    + 'record:(w,ok)=>VQ.recordAnswer(S,{word:w,type:"match",correct:!!ok,today:VQ.dayKey(new Date())}),'
+    + 'saveNow:()=>save({silent:true}),home:()=>renderHome()};');
 
   // 这些用例考的是"系统合成"通道的细节，先锁定到 native，别被默认的录音通道带跑
   if (opts.voice) win.VQSpeech.setVoice(opts.voice);
@@ -156,6 +159,34 @@ test("今日队列：错词排在最前，新词按学习顺序补齐", () => {
   const q2 = G2.qs.find((q) => q.en === wrongedOn);
   assert.ok(q2, "答对过的词应再次出现在队列里");
   assert.equal(q2.type, "spell", "答对过一次 → 改考拼写");
+});
+
+test("长对话没听出来的词，回首页自动进错词重练（只收学过的词，且不重复记）", () => {
+  const ctx = boot();
+  const bank = ctx.api.getBank();
+  const learned = bank[0][0];
+  const untouched = bank[bank.length - 1][0];
+  assert.notEqual(learned, untouched);
+
+  // 先让 learned 变成"学过"
+  ctx.api.record(learned, true);
+  const before = ctx.api.getS().words[learned].lapses || 0;
+
+  // 听写页留下的队列：一个学过的词、一个没学过的词、一个词库里根本没有的词
+  ctx.win.localStorage.setItem("vq_dict_miss", JSON.stringify({
+    [ctx.api.norm(learned)]: Date.now(),
+    [ctx.api.norm(untouched)]: Date.now(),
+    "zzzzzznotaword": Date.now()
+  }));
+
+  ctx.api.home();
+  const S = ctx.api.getS();
+  assert.equal(S.words[learned].lapses, before + 1, "没听出来的词要进错词重练");
+  assert.equal(S.words[untouched], undefined, "没学过的词不该被塞进错词区，那会打乱新词顺序");
+
+  // 再渲染一次：同一批不该再记一遍 Again
+  ctx.api.home();
+  assert.equal(ctx.api.getS().words[learned].lapses, before + 1, "回填过的项必须标成已处理");
 });
 
 test("存档写入：可被重新导入并保持进度与记忆状态", () => {
@@ -1284,6 +1315,52 @@ test("声音来源面板把「要联网、句子外发」写在按钮旁边", as
   assert.match(rows[0].textContent, /内置人声/);
   assert.match(rows[0].textContent, /联网/, "代价要写在选的地方，不能只藏在文档里");
   assert.match(rows[1].textContent, /设备语音/);
+});
+
+test("听写写错的词记进待处理队列：听写页不自己改存档，只留话给闯关页", () => {
+  const ctx = bootListening({ source: "device" });
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  // 第一句是 "Good morning. What can I get for you today?"，只写前两个词
+  ctx.$("ansInput").value = "good morning";
+  ctx.$("submitBtn").click();
+
+  const raw = ctx.win.localStorage.getItem("vq_dict_miss");
+  assert.ok(raw, "漏了词就该留下队列");
+  const box = JSON.parse(raw);
+  const keys = Object.keys(box);
+  assert.ok(keys.includes("what"), "漏掉的词要记下来，实际：" + keys.join(","));
+  assert.ok(box.what > 0, "未处理项是正数（负数代表已回填过）");
+  assert.ok(!keys.includes("good"), "听对的词不该记");
+});
+
+test("结算页把没听出来的词摊开，点一下能听发音", async () => {
+  const ctx = bootListening({ source: "device" });
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  const D = ctx.win.__dlg.getD();
+  for (let i = 0; i < D.lines.length; i++) {
+    ctx.$("ansInput").value = D.lines[i].en.split(/\s+/)[0];   // 每句只写一个词，必然有漏
+    ctx.$("submitBtn").click();
+    ctx.$("nextLine").click();
+  }
+  await new Promise((r) => setTimeout(r, 60));
+
+  assert.ok(ctx.$("doneView").classList.contains("active"));
+  assert.equal(ctx.$("missCard").style.display, "block", "有漏词就要摊开，别只给一个百分比");
+  const chips = [...ctx.doc.querySelectorAll("#missChips .chip")];
+  assert.ok(chips.length > 5, "漏的词都该列出来，实际 " + chips.length);
+
+  const before = ctx.audios.length;
+  chips[0].click();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(ctx.audios.length > before, "点一下要能听到这个词");
+});
+
+test("进一段对话就把 6 句全预取下来，切下一句不用再等网络", () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  const files = ctx.audios.map((a) => a.initSrc).filter((u) => /^\.\/audio\/cafe\//.test(u));
+  const uniq = [...new Set(files)];
+  assert.equal(uniq.length, 6, "整段 6 句都要预取，实际：" + uniq.join(" | "));
 });
 
 test("云端模式下气口圆点只留一个：整句是一段音频，没有人工气口可数", () => {

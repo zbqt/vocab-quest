@@ -424,6 +424,7 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 <script src="vocab.js"></script>
 <script src="vocab_c6.js"></script>
 <script src="grammar.js"></script>
+<script src="dictation.js"></script>
 <script src="fsrs.js"></script>
 <script src="engine.js"></script>
 <script src="cloud-sync.js"></script>
@@ -636,7 +637,57 @@ function renderWeek(){
     ?`${active} 天有学 · ${tot} 题`+(ans?` · 正确率 ${Math.round(ok/ans*100)}%`:"")
     :"最近 7 天还没有记录";
 }
+/* ================= 听写错词回填 =================
+ * 长对话听写写错的词，听写页只记进 vq_dict_miss 这个待处理队列，不直接写存档 ——
+ * 存档按词书分成 4 份，听写页不知道自己该写哪一份，两边都写迟早打架。
+ * 所以存档的唯一写入口仍然是这里。
+ *
+ * 两条克制：
+ *   1. 只处理词库里真有、而且**已经学过**的词。把没背过的词塞进错词区，
+ *      等于打乱新词顺序，那不叫复习。
+ *   2. 处理过的项标成负数，避免每次渲染首页都重复记一次 Again。 */
+const MISS_KEY="vq_dict_miss";
+let missIndex=null;
+function missWordIndex(){
+  if(missIndex)return missIndex;
+  missIndex={};
+  if(!window.VQDictation)return missIndex;
+  BANK.forEach(w=>{
+    const n=VQDictation.normalizeWords(w[0])[0];
+    if(n&&!missIndex[n])missIndex[n]=w[0];
+  });
+  return missIndex;
+}
+function absorbDictationMiss(){
+  if(!window.VQDictation)return 0;
+  let box=null;
+  try{const raw=localStorage.getItem(MISS_KEY);if(raw)box=JSON.parse(raw);}catch(e){return 0;}
+  if(!box||typeof box!=="object")return 0;
+  const pending=Object.keys(box).filter(k=>box[k]>0);
+  if(!pending.length)return 0;
+
+  const idx=missWordIndex();
+  const today=VQ.dayKey(new Date());
+  let hit=0;
+  pending.forEach(n=>{
+    const word=idx[n];
+    box[n]=-Date.now();              // 先标已处理：处理不到也认，别反复扫
+    if(!word)return;
+    const ws=S.words[word];
+    if(!ws||!(ws.seen>0))return;
+    VQ.recordAnswer(S,{word:word,type:"listen",correct:false,today:today});
+    hit++;
+  });
+  try{localStorage.setItem(MISS_KEY,JSON.stringify(box));}catch(e){}
+  if(hit){
+    save();
+    setTimeout(()=>toast("长对话里有 "+hit+" 个词没听出来，已放进错词重练"),700);
+  }
+  return hit;
+}
+
 function renderHome(){
+  absorbDictationMiss();
   const c=VQ.counts(S);
   const order=learnOrderNow();
   const q=VQ.dailyQueue(S,{today:todayStr(),total:VQ.DAILY_TOTAL,newMax:VQ.DAILY_NEW,newFloor:VQ.DAILY_NEW_FLOOR,order:order});

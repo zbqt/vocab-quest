@@ -126,6 +126,12 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .sent-row .bar i.low{background:#ef4444}
 .sent-row .v{width:42px;text-align:right;font-weight:800;color:#4a5168;flex:0 0 auto}
 
+/* 没听出来的词 */
+.miss-wrap{margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{padding:8px 12px;border-radius:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer}
+.chip:active{background:#fee2e2}
+
 .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(12px);background:rgba(31,36,48,.94);color:#fff;font-size:13px;font-weight:700;padding:10px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:.24s;max-width:86vw;text-align:center;z-index:99}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -217,6 +223,13 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div class="card">
       <div id="doneLines"></div>
     </div>
+    <div class="card" id="missCard" style="display:none">
+      <h3 style="font-size:15px;font-weight:800">这几句里没听出来的词</h3>
+      <p style="font-size:12px;color:#8a91a5;line-height:1.7;margin-top:5px">
+        点一下听发音。这些词已经记下了，去闯关页的「错词重练」还能再遇到。
+      </p>
+      <div class="chips" id="missChips"></div>
+    </div>
     <button class="submit" id="againBtn">再听一遍</button>
     <button class="next" id="nextDlg" style="background:#fff;color:#4a5168;border:1px solid #e5e7eb">练下一段对话 →</button>
     <button class="next" id="backToList" style="background:#fff;color:#4a5168;border:1px solid #e5e7eb">返回列表</button>
@@ -240,11 +253,11 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <button class="tool" id="sheetClose" style="width:100%;margin-top:4px">收起</button>
 </div>
 
-<script src="prosody.js?v=0.11.0"></script>
-<script src="sentence-audio.js?v=0.11.0"></script>
-<script src="tts.js?v=0.11.0"></script>
-<script src="dictation.js?v=0.11.0"></script>
-<script src="dialogues.js?v=0.11.0"></script>
+<script src="prosody.js?v=0.11.1"></script>
+<script src="sentence-audio.js?v=0.11.1"></script>
+<script src="tts.js?v=0.11.1"></script>
+<script src="dictation.js?v=0.11.1"></script>
+<script src="dialogues.js?v=0.11.1"></script>
 <script>
 /* ================= 工具 ================= */
 function $(id){return document.getElementById(id);}
@@ -265,6 +278,10 @@ let slow=false;
 try{slow=localStorage.getItem(PREF)==="1";}catch(e){}
 const RATE_NORMAL=1, RATE_SLOW=0.8;   // 正常速才是自然速；慢速只作为听不清时的拐杖
 const RATE_MP3_SLOW=0.86;             // 真实录音拉伸超过这个幅度就开始发糊，比合成更敏感
+// 手指操作时不要抢键盘：一进页面就 focus，键盘会把「播放」按钮顶出屏幕
+const TOUCH=(window.matchMedia&&matchMedia("(pointer:coarse)").matches)||"ontouchstart" in window;
+// 没听出来的词交给闯关页回填（听写页不自己改存档，写入口只有一个）
+const MISS_KEY="vq_dict_miss";
 
 /* ================= 列表 ================= */
 const LV_TEXT={1:"日常",2:"校园生活",3:"进阶"};
@@ -299,6 +316,16 @@ function open(id){
   $("doneTitle").textContent=D.title;
   show("drillView");
   renderLine();
+  preloadDialogue();
+}
+
+/* 整段一次预取：点「下一句」时声音已经在本机了，不用再等一轮网络。
+   一段 6 句大约 80KB，比"每句都空等 1 秒"划算得多。 */
+function preloadDialogue(){
+  if(!D||!window.VQSpeech||typeof VQSpeech.prefetchCloud!=="function")return;
+  D.lines.forEach((L,i)=>{
+    VQSpeech.prefetchCloud(L.en,{speaker:L.sp,file:audioPath(D.id,i)});
+  });
 }
 
 function renderLine(){
@@ -335,7 +362,8 @@ function renderLine(){
   paintSlow();
   // 先把这一句的声音取下来：听写要反复听同一句，2 秒的等待会被放大很多次
   if(window.VQSpeech&&VQSpeech.prefetchCloud)VQSpeech.prefetchCloud(L.en,{speaker:L.sp,file:audioPath(D.id,idx)});
-  setTimeout(()=>{ if($("ansInput").disabled===false) $("ansInput").focus(); },80);
+  // 桌面端直接给光标，省一次点击；手机端不抢，键盘弹起来会挡住播放按钮
+  if(!TOUCH)setTimeout(()=>{ if($("ansInput").disabled===false) $("ansInput").focus(); },80);
 }
 
 /* 谁在说话：A / B 两种声线，听起来是两个人，不是一个人在念稿 */
@@ -551,11 +579,34 @@ function submitLine(){
   const L=D.lines[idx];
   const r=VQDictation.check(L.en,val);
   results[idx]=r;
+  noteMiss(r);
   paintResult(r,L);
   $("ansInput").disabled=true;
+  $("ansInput").blur();     // 手机上立刻收键盘，别让它挡住原句和「听下一句」
   $("submitBtn").style.display="none";
   $("nextLine").style.display="block";
   $("nextLine").textContent=(idx+1<D.lines.length)?"听下一句 →":"看看结果 →";
+}
+
+/* 记下没听出来的词。这里只写一个待回填队列，**不直接改学习存档** ——
+   存档有 4 份（按词书分），结构也只该由 game.html 一处写，否则两边迟早打架。
+   词形是归一化后的（don't → dont、two → 2），回填时用同样的函数反查原形。 */
+function noteMiss(r){
+  if(!r||!r.tokens||!r.miss)return;
+  const add={};
+  r.tokens.forEach(t=>{ if(t.miss)add[t.w]=1; });
+  const keys=Object.keys(add);
+  if(!keys.length)return;
+  let box={};
+  try{const raw=localStorage.getItem(MISS_KEY);if(raw)box=JSON.parse(raw)||{};}catch(e){box={};}
+  if(!box||typeof box!=="object")box={};
+  const now=Date.now();
+  keys.forEach(k=>{box[k]=now;});
+  const all=Object.keys(box);
+  if(all.length>400){       // 队列不能无限长：只留最近 400 个
+    all.sort((a,b)=>(box[a]||0)-(box[b]||0)).slice(0,all.length-400).forEach(k=>{delete box[k];});
+  }
+  try{localStorage.setItem(MISS_KEY,JSON.stringify(box));}catch(e){}
 }
 
 function paintResult(r,L){
@@ -577,6 +628,46 @@ function paintResult(r,L){
 }
 
 /* ================= 结果页 ================= */
+/* 归一化词形 → 句子里的原形（don't 比 dont 好看，也是能朗读的形式） */
+function originalForm(norm,lineIdx){
+  const line=D.lines[lineIdx];
+  if(!line)return norm;
+  const raw=String(line.en).split(/[^A-Za-z0-9']+/).filter(Boolean);
+  for(let i=0;i<raw.length;i++){
+    if(VQDictation.normalizeWords(raw[i])[0]===norm)return raw[i];
+  }
+  return norm;
+}
+
+function missList(){
+  const seen={},out=[];
+  results.forEach((r,i)=>{
+    if(!r)return;
+    r.tokens.forEach(t=>{
+      if(!t.miss||seen[t.w])return;
+      seen[t.w]=1;
+      out.push({norm:t.w,form:originalForm(t.w,i)});
+    });
+  });
+  return out;
+}
+
+/* 结算时把没听出来的词摊开：只见一次的词记不住，得能点着听、写着练 */
+function paintMiss(){
+  const list=missList();
+  const card=$("missCard"),box=$("missChips");
+  box.innerHTML="";
+  if(!list.length){card.style.display="none";return;}
+  card.style.display="block";
+  list.forEach(it=>{
+    const b=document.createElement("button");
+    b.className="chip";
+    b.textContent=it.form;
+    b.onclick=()=>{ if(window.VQSpeech)VQSpeech.speak(it.form,{onDone:()=>{}}); };
+    box.appendChild(b);
+  });
+}
+
 function finishAll(){
   const s=VQDictation.summary(results);
   const pct=Math.round(s.rate*100);
@@ -593,6 +684,7 @@ function finishAll(){
       <span class="v">${p}%</span></div>`;
   }).join("");
   saveBest(D.id,{rate:pct,at:Date.now(),sentences:s.sentences});
+  paintMiss();
 
   const i=DIALOGUES.indexOf(D);
   const nx=DIALOGUES[i+1];
