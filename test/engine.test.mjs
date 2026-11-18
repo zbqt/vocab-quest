@@ -559,3 +559,92 @@ test("音标写法不同但同音，也要被认出来", () => {
   assert.equal(VQ.soundKey("/piːs/"), VQ.soundKey("piːs"));
   assert.notEqual(VQ.soundKey("siː"), VQ.soundKey("sɪ"));
 });
+
+/* ================= 英→中（lookZh）排课 ================= */
+
+// 汉语释义互不相同，才能保证四选一有唯一答案
+function r2zWords(n) {
+  const zh = ["放弃", "能力", "缺席", "吸收", "抽象", "丰富", "加速", "达到", "承认", "采用", "优势", "建议"];
+  return Array.from({ length: n }, (_, i) => ["en" + (i + 1), zh[i] + "（" + (i + 1) + "）", ""]);
+}
+
+test("英→中按 lookZhEvery 的比例出现，且题干只给英文、选项只给汉语", () => {
+  const words = r2zWords(12);
+  const sess = VQ.buildSession({ words, lookZhEvery: 4, spellEvery: 0, listenEvery: 0, mode: "play", pool: words });
+  const qs = sess.questions.filter((q) => q.type === "lookZh");
+  assert.equal(qs.length, 3, "12 个词、每 4 个一道，应该正好 3 道");
+
+  qs.forEach((q) => {
+    assert.equal(q.prompt, q.en, "题干就是英文词形本身，这是「看见就懂」的前提");
+    assert.ok(q.options.includes(q.zh), "正确答案（汉语释义）必须在选项里");
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4, "四条释义不能重复：" + q.options.join(","));
+    q.options.forEach((o) => {
+      assert.ok(/[\u4e00-\u9fa5]/.test(o), "选项必须是汉语，混进英文就等于送答案：" + o);
+    });
+  });
+});
+
+test("英→中与听音同时插入时各占一份，谁也不把谁顶掉", () => {
+  // 旧排法各算各的，两种插入题会抢同一批空位，后算的会把先算的整型覆盖掉。
+  // 12 词、spellEvery=4 占 3 个位置，剩 9 个空位正好各要 3 道 —— 覆盖一次就看得出少了。
+  const words = r2zWords(12);
+  for (let seed = 1; seed <= 12; seed++) {
+    const sess = VQ.buildSession({
+      words: words.slice(), spellEvery: 4, listenEvery: 4, lookZhEvery: 4,
+      mode: "play", pool: words, rng: (a) => VQ.seededShuffle(a, seed)
+    });
+    const by = {};
+    sess.questions.forEach((q) => { by[q.type] = (by[q.type] || 0) + 1; });
+    assert.equal(sess.questions.length, 12, "seed " + seed + "：一局仍然是 12 题");
+    assert.equal(by.spell, 3, "seed " + seed + "：拼写 3 道，" + JSON.stringify(by));
+    assert.equal(by.listen, 3, "seed " + seed + "：听音 3 道，" + JSON.stringify(by));
+    assert.equal(by.lookZh, 3, "seed " + seed + "：英→中 3 道，" + JSON.stringify(by));
+    assert.equal(by.match, 3, "seed " + seed + "：中→英 3 道，" + JSON.stringify(by));
+  }
+});
+
+test("拼写密集的关卡插满之后，仍然留得下「中→英」（写作要用的产出方向）", () => {
+  // spellEvery=2：12 词里 6 道拼写，只剩 6 个空位，而听音 + 英→中各要 3 道
+  const words = r2zWords(12);
+  for (let seed = 1; seed <= 8; seed++) {
+    const sess = VQ.buildSession({
+      words: words.slice(), spellEvery: 2, listenEvery: 4, lookZhEvery: 4,
+      mode: "play", pool: words, rng: (a) => VQ.seededShuffle(a, seed)
+    });
+    const by = {};
+    sess.questions.forEach((q) => { by[q.type] = (by[q.type] || 0) + 1; });
+    assert.equal(by.spell, 6, "拼写该占满一半");
+    assert.ok((by.match || 0) >= 2, "整关一道中→英都不剩了：" + JSON.stringify(by));
+    assert.ok((by.listen || 0) >= 1, "听音不能被削没：" + JSON.stringify(by));
+    assert.ok((by.lookZh || 0) >= 1, "英→中不能被削没：" + JSON.stringify(by));
+  }
+});
+
+test("英→中：同音词的释义不能当干扰项，否则两个答案都算对", () => {
+  const homo = [
+    ["see", "看见", "siː"],
+    ["sea", "大海", "siː"],
+    ["pear", "梨", ""], ["plum", "李子", ""], ["peach", "桃", ""], ["grape", "葡萄", ""]
+  ];
+  const q = VQ.buildQuestion(homo[0], 0, { forceType: "lookZh", pool: homo });
+  assert.equal(q.type, "lookZh");
+  assert.ok(!q.options.includes("大海"), "与 see 同音的 sea 不能进选项：" + q.options.join(","));
+  assert.ok(q.homophones.includes("sea"), "同音这件事要在答完后说清楚");
+});
+
+test("英→中记 recog 方向：它和「中→英」练的是同一种「认得出」", () => {
+  const s = VQ.createState(UNITS, TODAY);
+  VQ.recordAnswer(s, { word: "abandon", type: "lookZh", correct: true, today: TODAY });
+  assert.ok(s.words.abandon.dirs.recog, "英→中走认词方向");
+  assert.equal(s.words.abandon.dirs.listen, undefined, "没出过声音，不能算听觉通路");
+  assert.equal(s.words.abandon.dirs.recall, undefined, "没有拼写，不能算产出通路");
+});
+
+test("英→中每题都挂在一个真实存在的词上，且一局里每个词只考一次", () => {
+  const words = r2zWords(12);
+  const sess = VQ.buildSession({ words: words.slice(), lookZhEvery: 3, spellEvery: 0, listenEvery: 0, mode: "play", pool: words });
+  const ens = sess.questions.map((q) => q.en);
+  assert.equal(new Set(ens).size, ens.length, "同一个词不该出两道题：" + ens.join(","));
+  assert.deepEqual(new Set(ens), new Set(words.map((w) => w[0])), "本关 12 个词都得考到");
+});

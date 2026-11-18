@@ -82,7 +82,8 @@ function playThrough(ctx, { wrongWord = false } = {}) {
     const G = ctx.api.getG();
     const q = G.qs[G.idx];
     const makeWrong = wrongWord && !wrongedOn && q.type !== "grammar";
-    if (makeWrong) wrongedOn = q.answer;
+    // 词形在 en 上：英→中 / 听音辨义两种题的 answer 是中文释义，拿它当词会找不到人
+    if (makeWrong) wrongedOn = q.en || q.answer;
     answerCurrent(ctx, !makeWrong);
   }
   assert.ok(ctx.api.getG().finished, "应走到结算");
@@ -141,13 +142,14 @@ test("今日队列：错词排在最前，新词按学习顺序补齐", () => {
   const G = ctx.api.getG();
   assert.equal(G.mode, "review");
   assert.equal(G.daily, true);
-  assert.equal(G.qs[0].answer, wrongedOn, "第一题就是刚错的词");
+  assert.equal(G.qs[0].en, wrongedOn, "第一题就是刚错的词");
   assert.equal(G.qs.length, 16, "1 个复习 + 15 个新词（新词上限 15）");
 
   // 还没答对过的词（包括刚错的）只考认词，答对过才考拼写
   const byWord = {};
   G.qs.forEach((q) => { if (q.en) byWord[q.en] = q.type; });
-  assert.equal(byWord[wrongedOn], "match", "刚答错还没答对过，第二次仍只考认词");
+  assert.equal(byWord[wrongedOn], "lookZh",
+    "刚答错还没答对过，第二次仍只考认词 —— 认词是看英文选中文，实际：" + byWord[wrongedOn]);
 
   // 答对一次之后，同一个词就该考拼写了（先把它的到期日拨回今天）
   const day = ctx.win.VQEngine.dayKey(new Date());
@@ -316,7 +318,9 @@ test("「这词我会」按钮：跳过当前题、推到 60 天后、结算如�
   ctx.$("heroBtn").click();
 
   const G = ctx.api.getG();
-  const firstWord = G.qs[0].answer;
+  // answer 在英→中题里是中文释义，词形在 en 上
+  const firstWord = G.qs[0].en;
+  assert.ok(firstWord, "第一题必须挂在某个词上");
   assert.equal(ctx.$("knownBtn").style.display, "block", "单词题显示跳过按钮");
 
   ctx.$("knownBtn").click();
@@ -573,7 +577,8 @@ test("首页不再下载完整词库（716KB → 一个统计文件）", () => {
   for (const f of ["vocab.js", "vocab_c6.js", "vocab_cz.js", "vocab_gz.js"]) {
     assert.ok(!html.includes(f), "首页不该再引用 " + f);
   }
-  assert.ok(html.includes('src="stats.js"'), "首页应只读 stats.js");
+  // 带 ?v= 版本串也算：串只影响缓存键，不改变引用的是哪个文件
+  assert.ok(/src="stats\.js(\?v=[\d.]+)?"/.test(html), "首页应只读 stats.js");
 });
 
 test("语法题库：答案必须在选项里，且每级不少于 30 道", () => {
@@ -663,7 +668,9 @@ test("没有任何记录时，周视图给一句人话而不是空白", () => {
 test("键盘：数字键选选项、回车进下一题、已答后数字键不重复作答", () => {
   const ctx = boot("cet4");
   const G = openFirstLevel(ctx);
-  assert.equal(G.qs[G.idx].type, "match", "第一题应是认词四选一");
+  assert.ok(["match", "lookZh", "listen", "listenZh"].includes(G.qs[G.idx].type),
+    "第一题应是四选一，实际：" + G.qs[G.idx].type);
+  assert.equal(G.qs[G.idx].options.length, 4);
   const fire = (key) => ctx.doc.dispatchEvent(new ctx.win.KeyboardEvent("keydown", { key, bubbles: true }));
 
   fire("2");
@@ -799,7 +806,42 @@ test("闯关里真的会出现听音题，不是只在测试里存在", () => {
   assert.ok(kinds.listen > 0, "12 个词的关卡里应该至少有一道听音题，实际：" + JSON.stringify(kinds));
 });
 
-test("每日队列：有复习词时才穿插听音题，新词永远只考认词", () => {
+test("闯关里真的会出现英→中题，且题干是英文、选项是汉语", () => {
+  const ctx = boot("cet4");
+  const G = openFirstLevel(ctx);
+  const kinds = {};
+  G.qs.forEach((q) => { kinds[q.type] = (kinds[q.type] || 0) + 1; });
+  assert.ok(kinds.lookZh > 0, "12 个词的关卡里应该出现英→中，实际：" + JSON.stringify(kinds));
+  assert.ok(kinds.match > 0, "中→英不能整关缺席 —— 那是写作要用的方向，实际：" + JSON.stringify(kinds));
+
+  // 翻到一道英→中题上看界面：题干露英文，选项全是汉语
+  const li = G.qs.findIndex((q) => q.type === "lookZh");
+  G.idx = li;
+  ctx.win.renderQ();
+  const q = G.qs[li];
+  assert.equal(ctx.$("cnWord").textContent, q.en, "题干应该是英文词形本身");
+  assert.match(ctx.$("enemyLabel").textContent, /看英文选中文/);
+  assert.match(ctx.$("qTitle").textContent, /看见就懂/, "要提醒这是「看见就懂」，不是先心译一遍");
+  const opts = [...ctx.doc.querySelectorAll("#optionsBox .option")].map((b) => b.textContent);
+  assert.equal(opts.length, 4);
+  opts.forEach((o) => assert.ok(/[\u4e00-\u9fa5]/.test(o), "选项必须是汉语：" + o));
+});
+
+test("英→中答对后说「这个词是」，不能说「这个音是」（刚才根本没出声）", () => {
+  const ctx = boot("cet4");
+  const G = openFirstLevel(ctx);
+  const li = G.qs.findIndex((q) => q.type === "lookZh");
+  G.idx = li;
+  ctx.win.renderQ();
+  const q = G.qs[li];
+  const opt = [...ctx.doc.querySelectorAll("#optionsBox .option")].find((b) => b.textContent === q.answer);
+  opt.click();
+  const fb = ctx.$("feedback").textContent;
+  assert.match(fb, /这个词是/, "没出声就不该说「音」：" + fb);
+  assert.ok(fb.includes(q.en) && fb.includes(q.zh), "词形和释义都要给出来：" + fb);
+});
+
+test("每日队列：新词只出英→中（最轻的一步），复习词三型轮转，不插语法题", () => {
   const ctx = boot("cet4");
   const S = ctx.api.getS();
   // 造三个「已经答对过、今天该复习」的词
@@ -819,7 +861,15 @@ test("每日队列：有复习词时才穿插听音题，新词永远只考认�
     if (q.type === "listen") assert.ok(q.options && q.options.length === 4, "听音题必须有四个选项");
   });
   assert.ok(byType.listen > 0, "有复习词时应该出现听音题，实际：" + JSON.stringify(byType));
-  assert.ok(byType.match > 0, "新词仍然只考认词");
+  assert.ok(byType.spell > 0, "复习词要考拼写（产出方向不能缺席），实际：" + JSON.stringify(byType));
+
+  // 新词第一次见只给「看英文认中文」：反过来要求看中文想英文，一上来就是产出
+  const newTypes = G.qs
+    .filter((q) => q.en && !((S.words[q.en] || {}).okDays || []).length)
+    .map((q) => q.type);
+  assert.ok(newTypes.length > 0, "应该有新词");
+  assert.ok(newTypes.every((t) => t === "lookZh"),
+    "新词只该出英→中，实际：" + newTypes.join(","));
   assert.ok(!G.qs.some((q) => q.type === "grammar"), "每日队列只练词，不插语法题");
 });
 

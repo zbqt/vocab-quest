@@ -874,24 +874,56 @@
     var mode = input.mode || "play";
     var spellEvery = input.spellEvery || 0;
     var listenEvery = input.listenEvery || 0;
+    var lookZhEvery = input.lookZhEvery || 0;
     var grammarN = Math.min(input.grammarN || 0, (input.grammar || []).length);
     var pool = input.pool || words;
 
-    // 排课：拼写先占位，听音只在剩下的空位里均匀插。
-    // 如果两者各用模数判断，spellEvery=4 和 listenEvery=4 会完全撞车，
-    // 听音题会被悄悄挤掉 —— 出题配比不能靠"模数碰巧不相撞"来保证。
+    // 排课：拼写先占位，其余（听音 / 英→中）在剩下的空位里均匀插。
+    // 插入题必须一次算清再分配：各算各的话，后来者会把前者的位置直接覆盖 ——
+    // listenEvery=4 与 lookZhEvery=4 各要 3 道、只剩 6 个空位时还看不出来，
+    // 空位一紧就会有一型被悄悄吃掉，而且从题面上完全看不出少了什么。
     var types = [];
     for (var ti = 0; ti < words.length; ti++) {
       var forcedT = input.wordTypes && input.wordTypes[ti];
       if (forcedT) { types.push(forcedT); continue; }
       types.push(spellEvery > 0 && (ti + 1) % spellEvery === 0 ? "spell" : "");
     }
-    if (listenEvery > 0) {
-      var free = [];
-      for (var fi = 0; fi < types.length; fi++) if (!types[fi]) free.push(fi);
-      var want = Math.min(free.length, Math.max(1, Math.round(words.length / listenEvery)));
-      for (var wi = 0; wi < want; wi++) {
-        types[free[Math.floor((wi + 0.5) * free.length / want)]] = "listen";
+    var free = [];
+    for (var fi = 0; fi < types.length; fi++) if (!types[fi]) free.push(fi);
+
+    if (free.length) {
+      var wants = [];
+      if (listenEvery > 0) wants.push({ type: "listen", n: Math.max(1, Math.round(words.length / listenEvery)) });
+      if (lookZhEvery > 0) wants.push({ type: "lookZh", n: Math.max(1, Math.round(words.length / lookZhEvery)) });
+
+      var need = 0;
+      for (var ni = 0; ni < wants.length; ni++) need += wants[ni].n;
+      // 空位有限，但也不能被插入题吃干净：给基础题型留三分之一。
+      // 拼写多的高等级关卡（spellEvery=2，12 词里 6 道拼写）插满之后，
+      // 整关会一道"看中文选英文"都没有 —— 那是写作要用的产出方向，不能整关缺席。
+      var cap = Math.max(1, Math.floor(free.length * 2 / 3));
+      if (need > cap) {
+        var scale = cap / need;
+        for (var si = 0; si < wants.length; si++) wants[si].n = Math.max(1, Math.floor(wants[si].n * scale));
+        var sum = 0;
+        for (var s2 = 0; s2 < wants.length; s2++) sum += wants[s2].n;
+        while (sum > cap) {          // floor 之后仍可能超；从最多的那型往下削，不削到 0
+          var big = 0;
+          for (var b2 = 1; b2 < wants.length; b2++) if (wants[b2].n > wants[big].n) big = b2;
+          if (wants[big].n <= 1) break;
+          wants[big].n--; sum--;
+        }
+      }
+
+      var queue = [];
+      for (var qi = 0; qi < wants.length; qi++) {
+        for (var qn = 0; qn < wants[qi].n; qn++) queue.push(wants[qi].type);
+      }
+      queue = rng(queue);            // 打散：题型和位置都不该形成规律
+      var take = Math.min(queue.length, free.length);
+      for (var wi = 0; wi < take; wi++) {
+        // (wi+0.5)/take 保证位置均匀铺开，相邻两道不会挤在一起
+        types[free[Math.floor((wi + 0.5) * free.length / take)]] = queue[wi];
       }
     }
 

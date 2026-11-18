@@ -188,14 +188,14 @@ test("从 GitHub Pages 打开：不摆必然失败的登录框，直接给换地
 
 test("game.html 引了 cloud-sync.js 并挂了面板容器", () => {
   const html = read("game.html");
-  assert.match(html, /<script src="cloud-sync\.js"><\/script>/);
+  assert.match(html, /<script src="cloud-sync\.js(\?v=[\d.]+)?"><\/script>/);
   assert.match(html, /id="cloudMount"/);
   assert.match(html, /VQCloud\.mount\(document\.getElementById\("cloudMount"\)/);
 });
 
 test("index.html 也能登录并看到云端存档数量", () => {
   const html = read("index.html");
-  assert.match(html, /<script src="cloud-sync\.js"><\/script>/);
+  assert.match(html, /<script src="cloud-sync\.js(\?v=[\d.]+)?"><\/script>/);
   assert.match(html, /id="cloudMount"/);
 });
 

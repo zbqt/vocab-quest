@@ -418,16 +418,16 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
 <div class="toast" id="toast"></div>
 
-<script src="tts.js"></script>
-<script src="vocab_cz.js"></script>
-<script src="vocab_gz.js"></script>
-<script src="vocab.js"></script>
-<script src="vocab_c6.js"></script>
-<script src="grammar.js"></script>
-<script src="dictation.js"></script>
-<script src="fsrs.js"></script>
-<script src="engine.js"></script>
-<script src="cloud-sync.js"></script>
+<script src="tts.js?v=0.12.0"></script>
+<script src="vocab_cz.js?v=0.12.0"></script>
+<script src="vocab_gz.js?v=0.12.0"></script>
+<script src="vocab.js?v=0.12.0"></script>
+<script src="vocab_c6.js?v=0.12.0"></script>
+<script src="grammar.js?v=0.12.0"></script>
+<script src="dictation.js?v=0.12.0"></script>
+<script src="fsrs.js?v=0.12.0"></script>
+<script src="engine.js?v=0.12.0"></script>
+<script src="cloud-sync.js?v=0.12.0"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -559,6 +559,11 @@ function playWord(en,opts){
     // 听音题靠"有没有声音"决定题目怎么呈现，所以失败要先通知它，再谈界面文案。
     // onFail 返回 true 表示「它已经改写了题目并自己说明了原因」，这里就不要再盖一层报错文案。
     if(opts.onFail&&opts.onFail(reason)===true)return;
+    // 已经降级的听音题：题目这会儿是「看中文选英文」，声音不再影响作答。
+    // 再写一句"重试"会把「本题未计入听力判定」盖掉，用户就不知道这道题不算听力了。
+    // 点两次喇叭、或页面连播两轮，都会走到这里。
+    const cur=G&&G.qs&&G.qs[G.idx];
+    if(cur&&cur.degraded)return;
     // 答题后自动朗读不在用户手势里，iOS 会以 not-allowed 拦下；这种不打扰用户，喇叭仍可点
     if(opts.auto&&reason==="not-allowed"){setState("🔊 播放发音","",false);return;}
     const advice=window.VQSpeech?VQSpeech.reasonText(reason):"这台设备的语音引擎不可用，可换个浏览器试试";
@@ -926,10 +931,15 @@ function start(u,l,mode){
   const spellEvery=mode==="review"?3:CFG.spellK[l<=3?0:(l<=8?1:2)];
   // 听音题：闯关和测试里每几个词来一道。复习模式不出 —— 复习要的是稳，不是新鲜的考法。
   const listenEvery=mode==="review"?0:4;
+  // 英→中：每 4 个词一道，复习模式也保留。
+  // 现在其余题型全是"中→英"，方向整个是反的：能看着中文想起英文的人，
+  // 未必能一眼认出英文 —— 而四六级阅读考的正是后者。
+  // 复习里也不撤，它不依赖设备、不需要新考法，就是最基础的认词。
+  const lookZhEvery=4;
   const sess=VQ.buildSession({
     words:shuffle(lp.slice()),          // 本关全部 12 词，每词必考一次
     grammar:mode==="review"?[]:grammarPick(gN),
-    grammarN:gN, spellEvery:spellEvery, listenEvery:listenEvery, mode:mode, pool:pool
+    grammarN:gN, spellEvery:spellEvery, listenEvery:listenEvery, lookZhEvery:lookZhEvery, mode:mode, pool:pool
   });
   G={
     u,l,mode,shuf:S.shufMode&&mode!=="review",daily:false,
@@ -944,8 +954,9 @@ function start(u,l,mode){
   $("modeTag").className="mode-tag"+(mode==="play"?"":" "+mode);
   $("levelTitle").textContent=S.shufMode?`乱序第${u}段 LV${l}`:`第${u}单元 LV${l}`;
   const hasListen=sess.questions.some(q=>q.type==="listen");
+  const hasLookZh=sess.questions.some(q=>q.type==="lookZh");
   $("gameHint").textContent=(mode==="play"?`本关 ${sess.total} 题 · 答对 ${sess.passNeed} 题通关 · 全对得 3 星`
-    :mode==="review"?"巩固本关全部单词，不计星、不扣体力":"完整考核，错题进入错词区")+(hasListen?" · 🎧 含听音题":"");
+    :mode==="review"?"巩固本关全部单词，不计星、不扣体力":"完整考核，错题进入错词区")+(hasListen?" · 🎧 含听音题":"")+(hasLookZh?" · 👀 含英译中":"");
   show("gameView");
   renderQ();
 }
@@ -1041,8 +1052,12 @@ function renderQ(){
   // 听音题：进来先自动播一次。真的放不出声才降级；
   // iOS 的 not-allowed 属于「点一下就能播」，那种情况绝不能降级，否则 iPhone 永远用不上听音题。
   if(q.type==="listen"||q.type==="listenZh"){
+    const snap=q;      // 定时器 120ms 后才跑，这期间题目可能已经被换掉
     setTimeout(()=>{
       if(G.answered||G.finished)return;
+      // 题目换人了就别播：否则上一题的声音落到下一题上，失败还会把下一题的
+      // 降级文案盖掉 —— 快速点「下一题」时真会碰到。
+      if(G.qs[G.idx]!==snap)return;
       playWord(q.en,{auto:true,onFail:(reason)=>{
         if(reason==="not-allowed"){
           $("audioStatus").textContent="点一下上面的扬声器开始播放";
@@ -1074,8 +1089,11 @@ function pickMatch(btn,val){
   buttons.forEach(b=>b.disabled=true);
   if(val===q.answer){
     btn.classList.add("correct");G.correct++;G.combo++;if(q.en)G.correctWords.push(q.en);
+    // 只有真的听过声音才说"这个音"：降级的听音题、本来就是英→中的题，
+    // 都是靠词形认出来的，说"音"会让用户以为刚才有声音。
+    const byEar=q.type==="listenZh"&&!q.degraded;
     $("feedback").textContent=(q.type==="listenZh"||q.type==="lookZh")
-      ? `✔ ${q.degraded?"这个词是":"这个音是"} ${q.en}${q.ph?" /"+q.ph+"/":""} → ${q.zh}`
+      ? `✔ ${byEar?"这个音是":"这个词是"} ${q.en}${q.ph?" /"+q.ph+"/":""} → ${q.zh}`
       : "✔ 正确！";
     $("feedback").className="feedback good";
   }else{
@@ -1277,10 +1295,12 @@ function openDaily(reviewOnly){
   // 第二次见面就要求拼写是刁难，也容易把人劝退。
   const wordTypes=items.map((it,i)=>{
     const ws=S.words[it.word];
-    // 新词只考认词（第一次见就要求听音辨词是刁难）
-    if(!(ws&&(ws.okDays||[]).length>0))return "match";
-    // 复习词：拼写为主，每 3 个穿插 1 道听音，逼着耳朵也参与
-    return i%3===2?"listen":"spell";
+    // 新词第一次见：给「看英文认中文」。见形知义是认词最轻的一步，
+    // 反过来要求「看中文想英文」，第一次见面就直接变成了产出。
+    if(!(ws&&(ws.okDays||[]).length>0))return "lookZh";
+    // 复习词三型轮着来，一型都不许长期缺席：拼写是产出、英→中是认出、听音是听辨。
+    // 清一色拼写的后果是——认得出来但写不出的词，永远练不到「认出」这条最省力的通路。
+    return i%3===0?"spell":i%3===1?"lookZh":"listen";
   });
   const sess=VQ.buildSession({words,wordTypes,grammar:[],grammarN:0,spellEvery:0,mode:"review",pool:BANK});
   G={
@@ -1293,7 +1313,9 @@ function openDaily(reviewOnly){
   $("modeTag").textContent=reviewOnly?"到期复习":"今天 "+sess.total+" 词";
   $("modeTag").className="mode-tag review";
   $("levelTitle").textContent="复习 "+(items.length-nNew)+" · 新词 "+nNew;
-  $("gameHint").textContent="新词考认词、复习考拼写"+(wordTypes.some(t=>t==="listen")?"与听音":"")+" · 不扣体力 · 答错当天会再出现";
+  $("gameHint").textContent=(wordTypes.some(t=>t!=="lookZh")
+      ?"新词先认词义，复习轮考拼写 / 英译中 / 听音"
+      :"新词先认词义（看英文选中文，最轻的一步）")+" · 不扣体力 · 答错当天会再出现";
   show("gameView");renderQ();
 }
 $("heroBtn").onclick=()=>openDaily();
