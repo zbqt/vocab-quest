@@ -367,6 +367,76 @@
     }
   }
 
+  /* ---------- 整句朗读（长对话听写用） ----------
+   * 单词走有声录音，整句只能走系统合成：有道那类录音接口只收词条，读不了整句。
+   * 所以单独开一条路径，不复用 speak() —— speak() 的兜底链是「录音 → 合成」，
+   * 对句子没意义，硬套会先请求一个注定失败的音频地址，白等一轮。
+   * rate 可调：听写时慢一点听得清，但别太慢，太慢会丢掉连读，练不出真听力。 */
+  var SENT_SPEED = 0.9;
+
+  function speakSentence(text, opts) {
+    opts = opts || {};
+    var rate = typeof opts.rate === "number" ? opts.rate : SENT_SPEED;
+    var str = String(text == null ? "" : text).trim();
+    var done = once(function (ok, reason) {
+      if (opts.onDone) opts.onDone(ok, reason || "");
+    });
+    if (!str) { done(false, "empty"); return false; }
+
+    var s = getSynth();
+    if (!s || !hasCtor()) { done(false, "unsupported"); return false; }
+
+    bindVoices();
+    var voice = pickVoice();
+    stopAudio();               // 别让单词录音和整句抢着说话
+    resumeIfPaused(s);
+    try { s.cancel(); } catch (e) {}
+    // cancel 是异步的，紧接着 speak 会被吞（iOS / 安卓同一个毛病）
+    setTimeout(start, 60);
+    return true;
+
+    function start() {
+      var live = getSynth();
+      if (!live) { done(false, "unsupported"); return; }
+      var u;
+      try { u = buildUtterance(str, voice); } catch (e) { done(false, "synthesis-failed"); return; }
+      u.rate = rate;
+
+      var started = false, settled = false, watch = null;
+      // 按字符数估上限：英文合成大约 12 字符 / 秒，留 3 倍余量，
+      // 免得长句读到一半被 8 秒的老看门狗掐断。
+      var budget = Math.min(60000, Math.max(8000, Math.round(str.length / 12 * 3000)));
+
+      u.onstart = function () {
+        started = true;
+        if (opts.onStart) opts.onStart();
+      };
+      u.onend = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(watch);
+        done(true);
+      };
+      u.onerror = function (ev) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(watch);
+        done(false, (ev && ev.error) || "synthesis-failed");
+      };
+
+      try { live.speak(u); }
+      catch (e) { if (!settled) { settled = true; done(false, "synthesis-failed"); } return; }
+
+      watch = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        // 到点还没收到 onend：已经出过声就算成功（有的引擎根本不派 onend）
+        done(started, started ? "" : "not-started");
+      }, budget);
+      if (watch && typeof watch.unref === "function") watch.unref();
+    }
+  }
+
   /* ---------- 诊断（"为什么没声音"找原因） ---------- */
   /* 预取录音：题目一出现就把音频下到缓存里，点喇叭时不用等那 300ms */
   function prefetch(text) {
@@ -424,6 +494,7 @@
 
   global.VQSpeech = {
     speak: speak,
+    speakSentence: speakSentence,
     stop: stopAudio,
     diagnose: diagnose,
     reasonText: reasonText,

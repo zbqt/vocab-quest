@@ -29,7 +29,15 @@
   // 通关线：总题数 × 75%（12 题 → 9 题，14 题 → 11 题）
   var PASS_RATE = 0.75;
   // 题号 → 记忆方向
-  var TYPE_DIR = { match: "recog", spell: "recall", listen: "listen", produce: "produce" };
+  // listenZh（听音选义）和 listen（听音选词形）共用 "listen" 方向：
+  // 两者都是「从声音进去」，掌握判定要的是「听觉通路能不能建立」，不必拆成两个方向。
+  // lookZh（看英文选中文）走 recog：和 match 一样是「认得出」，只是方向反过来。
+  var TYPE_DIR = {
+    match: "recog", lookZh: "recog",
+    spell: "recall",
+    listen: "listen", listenZh: "listen",
+    produce: "produce"
+  };
   // 每日队列：总词数上限 / 新词保底 / 新词上限
   // 保底是为了「每天都有新内容」，上限是为了「一天别全是生词」
   var DAILY_TOTAL = 20;
@@ -112,6 +120,7 @@
       passedCountS: 0,
       passed: blankPass(units),
       passedS: blankPass(units),
+      listenPass: {},   // { [unitId]: 最好星级 } —— 每单元的听力专练，与关卡进度分开记
       words: {},        // { [lemma]: WordState }
       days: [],         // 有学习行为的自然日（算连续天数）
       placement: null,  // { at, estimate, bands, levels }
@@ -247,6 +256,13 @@
 
     if (validPass(raw.passed, units)) s.passed = raw.passed;
     if (validPass(raw.passedS, units)) s.passedS = raw.passedS;
+    // 听力专练星级：只认 0~3 的整数，别的值当没记过，避免脏档渲染出 7 星
+    if (raw.listenPass && typeof raw.listenPass === "object") {
+      Object.keys(raw.listenPass).forEach(function (k) {
+        var v = raw.listenPass[k];
+        if (typeof v === "number" && v >= 1 && v <= 3) s.listenPass[k] = v | 0;
+      });
+    }
     s.passedCount = countPassedMap(s.passed, units);
     s.passedCountS = countPassedMap(s.passedS, units);
 
@@ -734,6 +750,40 @@
       };
     }
 
+    // 听音选义（listenZh）：只给声音，选项是四个中文释义。
+    // 为什么单独造这个题型：考试里听到一个词，先想拼写、再想中文，是两步才到意思；
+    // 「声音 → 意思」该是一条直路。这一型就是在练那条直路，和 listen（音→形）分工不同。
+    // lookZh 是它的无声形态（看英文选中文），也是这台设备放不出声时的降级目标——
+    // 降级只该丢掉「声音」，不该把题变成另一个认知任务。
+    if (force === "listenZh" || force === "lookZh") {
+      var zhOpts = [zh];
+      var seenZh = {};
+      seenZh[zh] = 1;
+      var zhPool = rng(pool || []);
+      for (var zi = 0; zi < zhPool.length && zhOpts.length < 4; zi++) {
+        var z = zhPool[zi] && zhPool[zi][1];
+        // 释义完全相同 = 两个正确答案，必须去重
+        if (!z || seenZh[z]) continue;
+        seenZh[z] = 1;
+        zhOpts.push(z);
+      }
+      var zhDefs = zhOpts.map(function (o) {
+        var f = null;
+        for (var k = 0; k < (pool || []).length; k++) {
+          if (pool[k] && pool[k][1] === o) { f = pool[k]; break; }
+        }
+        return { en: f ? f[0] : "", zh: o, ph: f ? (f[2] || "") : "" };
+      });
+      return {
+        type: force === "lookZh" ? "lookZh" : "listenZh",
+        en: en, zh: zh, ph: ph,
+        prompt: force === "lookZh" ? en : "",   // lookZh 露词形，listenZh 只给声音
+        answer: zh,                              // 答案和选项都是中文
+        options: rng(zhOpts),
+        optDefs: zhDefs
+      };
+    }
+
     // 干扰项去重：跨词库合并后的池子里同一个词可能出现多次，
     // 不去重会出现「两个选项一模一样」，对听音题尤其致命（听到 A，选哪个 A？）
     var seenOpt = {};
@@ -840,6 +890,30 @@
     return { questions: questions, total: total, passNeed: passNeedFor(total), mode: mode };
   }
 
+  /**
+   * 听力专练取词：只从「真的学过」的词里抽（见过 1 次以上）。
+   *
+   * 为什么必须过滤：拿生词出听音选义，人只能瞎蒙四选一，练的是猜运不是听力。
+   * 听力训练的前提是「词已经见过、只是耳朵还不熟」。
+   * 每次随机抽，所以反复进同一单元的听力关，覆盖的词会越来越多。
+   *
+   * @param {Object} state
+   * @param {Array} unitWords 该单元的 [[en, zh, ph], ...]
+   * @param {Object} opts { n, rng }
+   * @returns {Array} 抽中的词条（可能少于 n，表示这个单元学过的词还不够）
+   */
+  function listeningWords(state, unitWords, opts) {
+    opts = opts || {};
+    var n = Math.max(1, opts.n || 12);
+    var rng = opts.rng || defaultRng;
+    var words = state && state.words ? state.words : {};
+    var learned = (unitWords || []).filter(function (w) {
+      var ws = w && words[w[0]];
+      return !!ws && ((ws.seen || 0) > 0 || (ws.reps || 0) > 0);
+    });
+    return rng(learned).slice(0, n);
+  }
+
   function interleave(wordQs, gQs, total, rng) {
     rng = rng || defaultRng;
     var out = wordQs.slice();
@@ -930,6 +1004,7 @@
     starsFor: starsFor,
     buildQuestion: buildQuestion,
     buildSession: buildSession,
+    listeningWords: listeningWords,
     appendEvent: appendEvent,
     seededShuffle: seededShuffle
   };

@@ -406,3 +406,100 @@ test("拼写和听音撞在一起时拼写优先，不会一题两种要求", ()
   });
   assert.equal(sess.total, 12, "不能因为排课逻辑丢题或多题");
 });
+
+/* ================= 听音选义 / 看英文选中文 ================= */
+
+const zhWords = [
+  ["abandon", "v. 丢弃；放弃", "ə'bændən"],
+  ["ability", "n. 能力", "ə'bɪləti"],
+  ["aboard", "adv. 在船上", "ə'bɔrd"],
+  ["absence", "n. 缺席", "'æbsns"],
+  ["absolute", "adj. 绝对的", "'æbsəluːt"],
+  ["absorb", "v. 吸收", "əb'sɔrb"]
+];
+
+test("听音选义：只给声音，选项是四个中文，答案在其中", () => {
+  const sess = VQ.buildSession({ words: [zhWords[0]], wordTypes: ["listenZh"], spellEvery: 0, listenEvery: 0, mode: "listen", pool: zhWords });
+  const q = sess.questions[0];
+  assert.equal(q.type, "listenZh");
+  assert.equal(q.prompt, "", "不能给文字题干，否则等于把答案念出来");
+  assert.equal(q.answer, "v. 丢弃；放弃");
+  assert.equal(q.options.length, 4, "四选一");
+  assert.equal(q.options.filter((o) => o === q.answer).length, 1);
+  // 选项必须是中文释义，不能混进英文词形
+  q.options.forEach((o) => assert.ok(/[\u4e00-\u9fa5]/.test(o), "选项应该是中文：" + o));
+  assert.equal(new Set(q.options).size, 4, "选项不能重复");
+  assert.equal(q.optDefs.length, 4, "答完要能摊开四个词的词形与释义");
+});
+
+test("看英文选中文：露词形，选项仍是中文（听音题的无音频降级形态）", () => {
+  const q = VQ.buildQuestion(zhWords[1], 0, { forceType: "lookZh", pool: zhWords });
+  assert.equal(q.type, "lookZh");
+  assert.equal(q.prompt, "ability");
+  assert.equal(q.answer, "n. 能力");
+  q.options.forEach((o) => assert.ok(/[\u4e00-\u9fa5]/.test(o)));
+});
+
+test("释义完全相同的两个词不会同时出现在选项里（否则一题两个正确答案）", () => {
+  const dup = [
+    ["happy", "adj. 高兴的", ""],
+    ["glad", "adj. 高兴的", ""],
+    ["sad", "adj. 悲伤的", ""],
+    ["angry", "adj. 生气的", ""],
+    ["tired", "adj. 累的", ""]
+  ];
+  const q = VQ.buildQuestion(dup[0], 0, { forceType: "listenZh", pool: dup });
+  assert.equal(new Set(q.options).size, q.options.length, "选项必须互不相同：" + q.options.join("|"));
+  assert.equal(q.options.filter((o) => o === "adj. 高兴的").length, 1);
+});
+
+test("全 listenZh 的一局：每道题都是听音选义，一道拼写都不掺", () => {
+  const sess = VQ.buildSession({
+    words: zhWords, wordTypes: zhWords.map(() => "listenZh"),
+    spellEvery: 0, listenEvery: 0, mode: "listen", pool: zhWords
+  });
+  assert.equal(sess.total, zhWords.length);
+  sess.questions.forEach((q) => {
+    assert.equal(q.type, "listenZh");
+    assert.equal(q.prompt, "");
+  });
+});
+
+test("听音选义记在 listen 通路上，不是认词通路", () => {
+  const s = VQ.createState(UNITS, TODAY);
+  VQ.recordAnswer(s, { word: "abandon", type: "listenZh", correct: true, today: TODAY });
+  assert.ok(s.words.abandon.dirs.listen, "应该记 listen 方向");
+  assert.equal(s.words.abandon.dirs.recog, undefined, "不该冒充认词");
+  // lookZh 相反：它是「看见就懂」，记 recog
+  VQ.recordAnswer(s, { word: "ability", type: "lookZh", correct: true, today: TODAY });
+  assert.ok(s.words.ability.dirs.recog);
+  assert.equal(s.words.ability.dirs.listen, undefined);
+});
+
+test("听力专练星级能存能读，脏值被丢掉", () => {
+  const s = VQ.normalizeState({
+    passed: { 1: { 1: 3, 2: 0 }, 2: { 1: 1, 2: 0, 3: 0 } },
+    listenPass: { 1: 2, 2: 7, 3: "3", 4: 0 }
+  }, { units: UNITS, today: TODAY });
+  assert.equal(s.listenPass[1], 2, "合法星级保留");
+  assert.equal(s.listenPass[2], undefined, "7 星不存在，丢掉");
+  assert.equal(s.listenPass[3], undefined, "字符串不算数");
+  assert.equal(s.listenPass[4], undefined, "0 星等同于没练过，不占位");
+});
+
+test("听力专练取词：只从学过的词里抽，生词一律不出现", () => {
+  const s = VQ.createState(UNITS, TODAY);
+  VQ.recordAnswer(s, { word: "abandon", type: "match", correct: true, today: TODAY });
+  VQ.recordAnswer(s, { word: "ability", type: "match", correct: false, today: TODAY });
+  // 报错也是见过了 —— 见过就该能练
+  const picked = VQ.listeningWords(s, zhWords, { n: 12 });
+  const names = picked.map((w) => w[0]).sort();
+  assert.deepEqual(names, ["abandon", "ability"], "只出见过的那两个词");
+});
+
+test("听力专练取词：学过的词不够时返回多少算多少，不拿生词凑数", () => {
+  const s = VQ.createState(UNITS, TODAY);
+  VQ.recordAnswer(s, { word: "abandon", type: "match", correct: true, today: TODAY });
+  const picked = VQ.listeningWords(s, zhWords, { n: 12 });
+  assert.equal(picked.length, 1);
+});

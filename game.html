@@ -206,6 +206,12 @@ body.shuf .stars{color:#7c3aed}
 .place-band-row.hot .place-band-fill{background:#ef4444}
 .place-band-row.warm .place-band-fill{background:#f59e0b}
 .place-band-row.good .place-band-fill{background:#c3cde6}
+
+/* 听力专练行：暖橙色，和普通关卡一眼分开 */
+.listen-row{background:linear-gradient(90deg,#fff8ee,#fffdf9);border-color:#fbe3c0}
+.listen-row .level-id{color:#f59e0b;font-size:16px}
+.listen-row .stars{color:#f59e0b}
+body.shuf .listen-row .level-id{color:#f59e0b}
 </style>
 </head>
 <body>
@@ -276,6 +282,15 @@ body.shuf .stars{color:#7c3aed}
       <button class="btn btn-warm" id="rescueBtn">练 0 词</button>
     </div>
 
+    <!-- 长对话听写：整段听力，跟单词语音是两回事，单独一个入口 -->
+    <div class="review-card" style="background:linear-gradient(135deg,#fff7ed,#fffbeb);border-color:#fed7aa">
+      <div>
+        <h3>🎧 长对话听写</h3>
+        <p>听一段对话，一句一句写下来，当场看到哪个词没听出来</p>
+      </div>
+      <a class="btn btn-warm" href="listening.html" style="text-decoration:none">去练</a>
+    </div>
+
     <div class="mode-switch">
       <button class="mode-tab active" id="tabSeq">📖 顺序闯关</button>
       <button class="mode-tab" id="tabShuf">🎲 乱序闯关</button>
@@ -286,7 +301,7 @@ body.shuf .stars{color:#7c3aed}
       <span style="font-size:11px;color:#9ca3af">想按单元刷就点这里 · 通关后可复习/测试</span>
     </div>
     <div id="unitContainer"></div>
-    <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词<span class="kbd-tip"> · 键盘 1-4 选选项、回车下一题、P 发音</span></div>
+    <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 听音选义 + 语法 · 每关覆盖全部单词<br>每个单元底部有 🎧 听力专练：只从学过的词里抽题，专练「声音 → 意思」<span class="kbd-tip"> · 键盘 1-4 选选项、回车下一题、P 发音</span></div>
     <div style="text-align:center;margin-top:10px"><a href="index.html" style="color:#5b6cff;font-weight:700;font-size:13px;text-decoration:none">← 返回词库中心首页</a></div>
     <div style="text-align:center;margin-top:6px;display:flex;gap:8px;justify-content:center">
       <button class="btn btn-ghost" id="expBtn">导出存档</button>
@@ -709,6 +724,7 @@ function renderUnit(u){
   if(open&&isUnitOpen(u.id)){
     const list=document.createElement("div");list.className="level-list";
     for(let l=1;l<=u.levels;l++)list.appendChild(renderLevel(u.id,l));
+    list.appendChild(renderListenLevel(u));
     el.appendChild(list);
   }
   return el;
@@ -735,6 +751,61 @@ function renderLevel(u,l){
   return row;
 }
 function btn(txt,cls,fn){const b=document.createElement("button");b.className="btn "+cls;b.textContent=txt;b.onclick=e=>{e.stopPropagation();fn();};return b;}
+
+/* ================= 听力专练 ================= */
+/* 每个单元挂一个，只从「学过的词」里随机抽 12 个，全部出听音选义。
+   为什么不按关卡挂：听力练的是耳朵，前提是词已经认识；拿生词出听音题只能瞎蒙四选一，
+   练的是猜运不是听力。按单元扫一遍学过的词，反复进每次抽到的不一样，覆盖面自然变大。
+   为什么不占关卡进度：它不是新内容，是同一个词的另一条通路，单独记星。 */
+const LISTEN_MIN=6;
+const LISTEN_N=12;
+function learnedInUnit(u){
+  return POOLS[u.id].filter(w=>{
+    const ws=S.words[w[0]];
+    return !!ws&&((ws.seen||0)>0||(ws.reps||0)>0);
+  });
+}
+function renderListenLevel(u){
+  const row=document.createElement("div");row.className="level-row listen-row";
+  const stars=(S.listenPass||{})[u.id]||0;
+  const learned=learnedInUnit(u).length;
+  const open=learned>=LISTEN_MIN;
+  const starHtml=stars?`<span class="stars">${"★".repeat(stars)}${"☆".repeat(3-stars)}</span>`:"";
+  row.innerHTML=`<div class="level-id">🎧</div>
+    <div class="level-info">
+      <h4>听力专练 · 听音选义</h4>
+      <p>${open
+        ? (stars?`最好成绩 ${starHtml} · 从 ${learned} 个学过的词里抽 ${Math.min(LISTEN_N,learned)} 个`
+                :`从学过的 ${learned} 个词里随机抽 ${Math.min(LISTEN_N,learned)} 个 · 只考「声音→意思」`)
+        : `学过的词还不够（${learned}/${LISTEN_MIN}），先闯几关`}</p>
+    </div>
+    <div class="actions"></div>`;
+  const acts=row.querySelector(".actions");
+  if(!open){acts.innerHTML=`<span class="lock-txt">🔒 待解锁</span>`;return row;}
+  acts.appendChild(btn(stars?"再练":"开始","btn-warm",()=>startListening(u.id)));
+  return row;
+}
+function startListening(uId){
+  const picked=VQ.listeningWords(S,POOLS[uId],{n:LISTEN_N});
+  if(picked.length<4){toast("这个单元学过的词还不够，先闯几关再来练听力");return;}
+  const words=shuffle(picked);
+  const sess=VQ.buildSession({
+    words:words,
+    wordTypes:words.map(()=>"listenZh"),
+    grammar:[],grammarN:0,spellEvery:0,mode:"listen",pool:POOLS[uId]
+  });
+  G={
+    u:uId,l:0,mode:"listen",listen:true,daily:false,rescue:false,shuf:S.shufMode,
+    src:words.map(w=>w[0]),qs:sess.questions,passNeed:sess.passNeed,
+    idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
+    combo:0,correctWords:[],wrongList:[],skipped:0
+  };
+  $("modeTag").textContent="🎧 听力专练";
+  $("modeTag").className="mode-tag review";
+  $("levelTitle").textContent=S.shufMode?`乱序第${uId}段 · 听力`:`第${uId}单元 · 听力`;
+  $("gameHint").textContent=`${sess.total} 题全是听音选义 · 不扣体力 · 每次随机抽词`;
+  show("gameView");renderQ();
+}
 
 /* ================= 游戏流程 ================= */
 let G=null;
@@ -781,17 +852,31 @@ function start(u,l,mode){
   show("gameView");
   renderQ();
 }
-/* 放不出声音时，听音题当场退化成「看中文选英文」。
-   一台放不出声的手机不该得到一道无法作答的死题 —— 这是听音题能不能上线的底线。 */
+/* 放不出声音时，听音题当场退化成「看得见字」的同一道题。
+   一台放不出声的手机不该得到一道无法作答的死题 —— 这是听音题能不能上线的底线。
+   降级只丢掉「声音」，认知任务不换：听音选义退成看英文选中文（lookZh），
+   听音选词退成看中文选英文（match）。 */
 function degradeListen(){
   const q=G.qs&&G.qs[G.idx];
-  if(!q||q.type!=="listen"||q.degraded)return false;
-  q.degraded=true;
-  q.type="match";          // 判定沿用 match，后续逻辑不用分叉
-  q.prompt=q.zh;
-  $("cnWord").textContent=q.zh;
-  $("enemyLabel").textContent="👾 选择正确的英文单词";
-  $("qTitle").textContent="这台设备放不出声音，已改成看中文选单词";
+  if(!q||q.degraded)return false;
+  if(q.type==="listen"){
+    q.degraded=true;
+    q.dir="listen";        // 记忆方向仍记在听觉通路上，别因为设备不行就算成认词
+    q.type="match";
+    q.prompt=q.zh;
+    $("cnWord").textContent=q.zh;
+    $("enemyLabel").textContent="👾 选择正确的英文单词";
+    $("qTitle").textContent="这台设备放不出声音，已改成看中文选单词";
+  }else if(q.type==="listenZh"){
+    q.degraded=true;
+    q.dir="listen";
+    q.type="lookZh";
+    q.prompt=q.en;
+    $("cnWord").textContent=q.en;
+    $("enemyLabel").textContent="👾 看英文选中文";
+    $("qTitle").textContent="这台设备放不出声音，已改成看英文选中文";
+    showAudio(q.en,q.ph);  // 词形都已经露了，音标没有泄题问题
+  }else return false;
   $("audioStatus").textContent="听音题已降级";
   return true;
 }
@@ -802,9 +887,20 @@ function renderQ(){
   if(q.en&&window.VQSpeech&&VQSpeech.prefetch)VQSpeech.prefetch(q.en);
   const T=G.qs.length;
   G.qStart=Date.now();
-  $("cnWord").textContent=q.type==="listen"?"🎧 听发音，选出你听到的单词":q.prompt;
-  $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战":(q.type==="listen"?"🎧 听音选词":(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词"));
-  $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项":(q.type==="listen"?"听不清可以多点几次，答案就藏在声音里":(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词"));
+  const isZhOpt=q.type==="listenZh"||q.type==="lookZh";
+  $("cnWord").textContent=q.type==="listen"?"🎧 听发音，选出你听到的单词"
+    :q.type==="listenZh"?"🎧 听发音，选出它的中文意思"
+    :q.prompt;
+  $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战"
+    :q.type==="listen"?"🎧 听音选词"
+    :q.type==="listenZh"?"🎧 听音选义"
+    :q.type==="lookZh"?"👾 看英文选中文"
+    :(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词");
+  $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项"
+    :q.type==="listen"?"听不清可以多点几次，答案就藏在声音里"
+    :q.type==="listenZh"?"先直奔意思，别在心里先拼一遍——考试就是这么听的"
+    :q.type==="lookZh"?"看见就懂，不用在心里先翻译两遍"
+    :(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词");
   $("qcount").textContent=(G.idx+1)+"/"+T;
   $("progFill").style.width=(G.idx/T*100)+"%";
   $("feedback").textContent="";$("feedback").className="feedback";
@@ -812,6 +908,8 @@ function renderQ(){
   renderHearts();
   if(q.type==="spell")showAudio(q.en,q.ph);
   else if(q.type==="listen")showAudio(q.en,"");   // 不传音标：音标几乎等于把答案念出来
+  else if(q.type==="listenZh")showAudio(q.en,""); // 同理，听音选义也不能提前给音标
+  else if(q.type==="lookZh")showAudio(q.en,q.ph); // 已经露了词形，音标就不算泄题
   else hideAudio();
   preloadWord(q.en);
   if(q.optDefs)q.optDefs.forEach(d=>preloadWord(d.en));
@@ -820,7 +918,7 @@ function renderQ(){
   $("knownBtn").style.display=(q.type!=="grammar"&&q.en)?"block":"none";
 
   const box=$("optionsBox");box.innerHTML="";
-  if(q.type==="match"||q.type==="listen"||q.type==="grammar"){
+  if(q.type==="match"||q.type==="listen"||q.type==="listenZh"||q.type==="lookZh"||q.type==="grammar"){
     q.options.forEach(opt=>{
       const b=document.createElement("button");b.className="option";b.textContent=opt;
       b.onclick=()=>pickMatch(b,opt);box.appendChild(b);
@@ -841,7 +939,7 @@ function renderQ(){
 
   // 听音题：进来先自动播一次。真的放不出声才降级；
   // iOS 的 not-allowed 属于「点一下就能播」，那种情况绝不能降级，否则 iPhone 永远用不上听音题。
-  if(q.type==="listen"){
+  if(q.type==="listen"||q.type==="listenZh"){
     setTimeout(()=>{
       if(G.answered||G.finished)return;
       playWord(q.en,{auto:true,onFail:(reason)=>{
@@ -854,13 +952,16 @@ function renderQ(){
     },120);
   }
 }
-function renderOptDefs(defs,answer,picked){
+/* 答后总览：把四个选项的词形、音标、释义一次摊开。
+   byZh = 这道题的选项本身就是中文（听音选义 / 看英文选中文），高亮要按中文比。 */
+function renderOptDefs(defs,answer,picked,byZh){
   const box=$("optDefs");
   box.style.display="flex";
+  const key=d=>byZh?d.zh:d.en;
   box.innerHTML=defs.map(d=>{
     let cls="opt-def-row";
-    if(d.en===answer)cls+=" correct";
-    else if(picked&&d.en===picked)cls+=" wrongpick";
+    if(key(d)===answer)cls+=" correct";
+    else if(picked&&key(d)===picked)cls+=" wrongpick";
     const ph=d.ph?` <span class="phonetic">/${d.ph}/</span>`:"";
     return `<div class="${cls}"><span class="od-word">${d.en}${ph}</span><span class="od-zh">${d.zh}</span><button class="audio-btn" data-w="${d.en}">🔊</button></div>`;
   }).join("");
@@ -879,7 +980,7 @@ function pickMatch(btn,val){
     onWrong(q.answer);
   }
   if(q.tip)$("feedback").textContent+="　📌 "+q.tip;
-  if(q.optDefs)renderOptDefs(q.optDefs,q.answer,val);
+  if(q.optDefs)renderOptDefs(q.optDefs,q.answer,val,q.type==="listenZh"||q.type==="lookZh");
   if(q.en){
     showAudio(q.en,q.ph);
     if(val===q.answer)playWord(q.en,{auto:true});
@@ -910,8 +1011,9 @@ function pickSpell(val){
 /* 作答落地：更新记忆状态 + 写事件日志（语法题不进记忆状态） */
 function recordWordResult(q,ok,picked){
   const rt=Math.max(0,Date.now()-(G.qStart||Date.now()));
+  const kType=q.dir||q.type;   // 降级题用原始题型记方向，设备不给力不算学习者的账
   if(q.type!=="grammar"&&q.en){
-    VQ.recordAnswer(S,{word:q.en,type:q.type,correct:ok,today:todayStr()});
+    VQ.recordAnswer(S,{word:q.en,type:kType,correct:ok,today:todayStr()});
   }
   // 语法题记一笔「做过的题干」，下次优先挑没做过的（不进记忆状态）
   if(q.type==="grammar"&&q.prompt){
@@ -920,7 +1022,7 @@ function recordWordResult(q,ok,picked){
   }
   VQ.appendEvent(S,{
     ts:Date.now(),u:G.u,l:G.l,mode:G.mode,shuf:G.shuf?1:0,
-    type:q.type,word:q.en||"",correct:ok?1:0,rt:rt,pick:picked||""
+    type:kType,word:q.en||"",correct:ok?1:0,rt:rt,pick:picked||""
   });
   save();
 }
@@ -928,7 +1030,8 @@ function onWrong(answer){
   G.wrong++;G.combo=0;
   if(G.mode==="play")G.hp--;
   $("feedback").textContent="✘ 正确答案："+answer;$("feedback").className="feedback bad";
-  G.wrongList.push({zh:(G.qs[G.idx].zh||G.qs[G.idx].tip||"语法题"),ans:answer,ph:(G.qs[G.idx].ph||"")});
+  // 同时记 en 和 ans：听音选义那类题的答案是中文，结算时不能用中文去比对词形
+  G.wrongList.push({zh:(G.qs[G.idx].zh||G.qs[G.idx].tip||"语法题"),ans:answer,ph:(G.qs[G.idx].ph||""),en:(G.qs[G.idx].en||"")});
 }
 function afterAnswer(){
   renderHearts();
@@ -962,7 +1065,11 @@ function finish(win){
   const stars=win?VQ.starsFor(G.correct,total):0;
   const exp=win?G.correct*15:0;const coin=win?G.correct*6:0;
   if(win){
-    if(G.mode!=="review"&&G.l>0){
+    if(G.listen&&G.u){
+      // 听力专练单独记星，只升不降
+      if(!S.listenPass||typeof S.listenPass!=="object")S.listenPass={};
+      if((S.listenPass[G.u]||0)<stars)S.listenPass[G.u]=stars;
+    }else if(G.mode!=="review"&&G.l>0){
       const map=G.shuf?S.passedS:S.passed;
       if(map[G.u][G.l]<stars)map[G.u][G.l]=stars;
       if(G.shuf)S.passedCountS=countAll(S.passedS);
@@ -978,20 +1085,22 @@ function finish(win){
   save();
   $("resBig").textContent=win?"🎉":(G.hp<=0?"💔":"😢");
   $("resTitle").textContent=G.rescue?(win?"错词练完了":"这轮错得有点多")
+    :G.listen?(win?"听力练完了":"这轮听岔得有点多")
     :G.daily?"今天的学习完成"
     :(win?(G.mode==="review"?"复习完成！":"关卡通关！"):(G.hp<=0?"体力耗尽":"再试一次吧"));
   const realCorrect=G.correct-(G.skipped||0);
   $("resSub").textContent=`正确 ${realCorrect}/${total} 题`
     +(G.skipped?`（跳过 ${G.skipped} 个）`:"")
     +(G.rescue?(G.wrong?` · 还有 ${G.wrong} 个没稳住，建议再来一轮`:" · 全部答对，错词区应该空了不少")
+      :G.listen?(win?`，获得 ${stars} 星 · 听错的词再进一次听力关就补上了`:`，需答对 ${G.passNeed} 题通关`)
       :G.daily?(G.wrong?` · 答错的 ${G.wrong} 个词会再出现`:" · 全对，很稳")
       :(win?`，获得 ${stars} 星`:`，需答对 ${G.passNeed} 题通关`));
   $("resExp").textContent=exp;$("resCoin").textContent=coin;
   const ov=$("wordOverview");
   const wrong=G.wrongList;
-  const answered=new Set([...G.correctWords,...wrong.map(w=>w.ans)]);
-  const todo=G.qs.filter(q=>!answered.has(q.en)).map(q=>({zh:q.zh,ans:q.en,ph:q.ph||""}));
-  const itemHtml=(w,cls)=>`<div class="${cls}"><span>${w.zh} → ${w.ans}${w.ph?` <span class="phonetic">/${w.ph}/</span>`:""}</span><button class="audio-btn" data-w="${w.ans}">🔊</button></div>`;
+  const answered=new Set([...G.correctWords,...wrong.map(w=>w.en||w.ans)]);
+  const todo=G.qs.filter(q=>!answered.has(q.en)).map(q=>({zh:q.zh,ans:q.answer,en:q.en,ph:q.ph||""}));
+  const itemHtml=(w,cls)=>`<div class="${cls}"><span>${w.zh} → ${w.en||w.ans}${w.ph?` <span class="phonetic">/${w.ph}/</span>`:""}</span><button class="audio-btn" data-w="${w.en||w.ans}">🔊</button></div>`;
   if(wrong.length||todo.length){
     ov.style.display="block";
     $("ovWrongList").innerHTML=wrong.length?`<div class="ov-group">答错 ${wrong.length} 词</div>`+wrong.map(w=>itemHtml(w,"wrong-item")).join(""):"";
@@ -1012,6 +1121,7 @@ $("resAgain").onclick=()=>{
   $("overlay").classList.remove("show");
   if(G&&G.rescue)openRescue();
   else if(G&&G.daily)openDaily();
+  else if(G&&G.listen)startListening(G.u);
   else start(G.u,G.l,G.mode);
 };
 
@@ -1023,7 +1133,7 @@ document.addEventListener("keydown",e=>{
   const t=e.target||{};
   if(t.tagName==="INPUT"||t.tagName==="TEXTAREA")return;
   const q=G.qs[G.idx];if(!q)return;
-  if(/^[1-4]$/.test(e.key)&&!G.answered&&(q.type==="match"||q.type==="grammar")){
+  if(/^[1-4]$/.test(e.key)&&!G.answered&&q.options&&q.options.length){
     const b=document.querySelectorAll("#optionsBox .option")[+e.key-1];
     if(b){e.preventDefault();b.click();}
     return;

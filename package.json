@@ -8,6 +8,7 @@
     "index.html",
     "words.html",
     "game.html",
+    "listening.html",
     "sw.js",
     "manifest.webmanifest",
     "icons/",
@@ -20,10 +21,12 @@
     "vocab_gz.js",
     "tts.js",
     "stats.js",
-    "cloud-sync.js"
+    "cloud-sync.js",
+    "dictation.js",
+    "dialogues.js"
   ],
   "scripts": {
-    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/cloud.test.mjs test/e2e.test.mjs",
+    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/dictation.test.mjs test/cloud.test.mjs test/e2e.test.mjs",
     "serve": "node tools/serve.mjs",
     "audit:data": "node tools/audit.mjs .",
     "fill:phonetic": "node tools/fill-phonetic.mjs .",

@@ -802,3 +802,141 @@ test("隐藏发音行时要把音标一起清掉，不能留着上一题的", ()
   ctx.win.renderQ();
   assert.equal(ctx.$("phonetic").textContent, "", "认词题不该在 DOM 里留着音标");
 });
+
+/* ================= 听力专练（听音选义） ================= */
+
+test("听力专练：一个词都没学过时是锁着的，不会拿生词让人瞎蒙", () => {
+  const ctx = boot("cet4");
+  const head = ctx.doc.querySelector(".unit-head");
+  head.click();
+  const row = ctx.doc.querySelector(".listen-row");
+  assert.ok(row, "每个单元下面都该有一行听力专练");
+  assert.ok(row.textContent.includes("学过的词还不够"), "没学词时应该提示先闯关");
+  assert.ok(![...row.querySelectorAll(".btn")].some((b) => b.textContent === "开始"), "锁着时不该有开始按钮");
+});
+
+test("听力专练：学完一关后开练，整局全是听音选义、答完记 3 星", () => {
+  const ctx = boot("cet4");
+  playThrough(ctx);            // 第一关 12 个词全见过
+  ctx.$("resHome").click();    // 回地图重渲染
+
+  const row = ctx.doc.querySelector(".listen-row");
+  const startBtn = [...row.querySelectorAll(".btn")].find((b) => b.textContent === "开始");
+  assert.ok(startBtn, "学过 12 个词后应该能开练");
+  startBtn.click();
+
+  const G = ctx.api.getG();
+  assert.equal(G.listen, true, "要标记成听力专练局");
+  assert.equal(G.hp, 999, "听力关不扣体力：放不出声连错也不该被打死");
+  assert.ok(G.qs.length >= 4);
+  G.qs.forEach((q) => {
+    assert.equal(q.type, "listenZh", "听力关只出听音选义：" + q.type);
+    assert.equal(q.prompt, "", "不能出现文字题干");
+    assert.ok(q.options.length === 4);
+    q.options.forEach((o) => assert.ok(/[\u4e00-\u9fa5]/.test(o), "选项必须是中文：" + o));
+  });
+
+  // 全对走完
+  let guard = 0;
+  while (!ctx.api.getG().finished && guard++ < 30) answerCurrent(ctx, true);
+
+  assert.equal(ctx.$("resTitle").textContent, "听力练完了");
+  const s = ctx.api.getS();
+  assert.equal(s.listenPass[1], 3, "满星应该写进听力专练成绩");
+  assert.equal(s.passed[1][1], 3, "原有的闯关进度还在");
+});
+
+test("拼错的听音选义：词进入错词区，听力星级不写", () => {
+  const ctx = boot("cet4");
+  playThrough(ctx);
+  ctx.$("resHome").click();
+  const row = ctx.doc.querySelector(".listen-row");
+  [...row.querySelectorAll(".btn")].find((b) => b.textContent === "开始").click();
+
+  let guard = 0;
+  while (!ctx.api.getG().finished && guard++ < 30) answerCurrent(ctx, false);
+
+  assert.equal(ctx.api.getS().listenPass[1], undefined, "没过关不该记星");
+  const touched = Object.values(ctx.api.getS().words).filter((w) => (w.lapses || 0) > 0);
+  assert.ok(touched.length > 0, "听错的词要进错词区");
+});
+
+/* ================= 长对话听写页 ================= */
+
+const LH = read("listening.html");
+const L_INLINE = LH.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
+
+function bootListening() {
+  const dom = new JSDOM(LH, {
+    url: "http://localhost/listening.html",
+    runScripts: "outside-only",
+    pretendToBeVisual: true
+  });
+  const win = dom.window;
+  win.speechSynthesis = { cancel() {}, speak() {} };
+  win.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+  win.Audio = class { play() { return Promise.resolve(); } pause() {} load() {} };
+  win.confirm = () => true;
+  win.scrollTo = () => {};
+  win.eval(["tts.js", "dictation.js", "dialogues.js"].map(read).join("\n") + "\n" + L_INLINE +
+    "\nwindow.__dlg={getD:()=>D,getIdx:()=>idx,getResults:()=>results};");
+  return { dom, win, doc: win.document, $: (id) => win.document.getElementById(id) };
+}
+
+test("长对话听写：列表按题库渲染，点开进第一句", () => {
+  const ctx = bootListening();
+  const cards = ctx.doc.querySelectorAll("#dlgList .dlg");
+  assert.equal(cards.length, 12, "题库 12 段");
+  assert.ok(cards[0].textContent.includes("咖啡店点单"));
+
+  cards[0].click();
+  assert.ok(ctx.$("drillView").classList.contains("active"));
+  assert.equal(ctx.$("dlgTitle").textContent, "咖啡店点单");
+  assert.equal(ctx.$("progNum").textContent, "1/6");
+});
+
+test("长对话听写：写错时逐词标红，写对时 100% 且判全对", () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  const D = ctx.win.__dlg.getD();
+  const line = D.lines[0];
+
+  // 漏掉最后两个词
+  const partial = line.en.split(/\s+/).slice(0, 3).join(" ");
+  ctx.$("ansInput").value = partial;
+  ctx.$("submitBtn").click();
+
+  const r = ctx.win.__dlg.getResults()[0];
+  assert.ok(r.miss > 0, "漏词要被标出来");
+  assert.ok(ctx.doc.querySelectorAll("#tokens .tk.miss").length > 0, "DOM 里要有红色标记");
+  assert.equal(ctx.$("ansInput").disabled, true, "提交后锁住输入框");
+  assert.notEqual(ctx.$("nextLine").style.display, "none", "应该出现下一句按钮");
+
+  // 第二句写全
+  ctx.$("nextLine").click();
+  const line2 = D.lines[1];
+  ctx.$("ansInput").value = line2.en.toLowerCase().replace(/[.,!?']/g, "");
+  ctx.$("submitBtn").click();
+  const r2 = ctx.win.__dlg.getResults()[1];
+  assert.equal(r2.perfect, true, "只差标点大小写也要判全对");
+  assert.ok(ctx.$("scoreLine").textContent.includes("100%"));
+});
+
+test("长对话听写：走完全部句子进结果页，最好成绩写进 localStorage", () => {
+  const ctx = bootListening();
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  const D = ctx.win.__dlg.getD();
+
+  for (let i = 0; i < D.lines.length; i++) {
+    ctx.$("ansInput").value = D.lines[i].en;
+    ctx.$("submitBtn").click();
+    if (i < D.lines.length - 1) ctx.$("nextLine").click();
+  }
+  ctx.$("nextLine").click();   // 最后一句 → 看结果
+
+  assert.ok(ctx.$("doneView").classList.contains("active"));
+  assert.equal(ctx.$("doneRate").textContent, "100%");
+  const best = JSON.parse(ctx.win.localStorage.getItem("vq_dict_best_cafe"));
+  assert.equal(best.rate, 100);
+  assert.equal(ctx.$("doneLines").querySelectorAll(".sent-row").length, D.lines.length);
+});

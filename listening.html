@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>长对话听写 · 单词闯关</title>
+<meta name="theme-color" content="#5b6cff">
+<meta name="description" content="听一段英语对话，一句一句写下来，当场看到哪几个词没听出来。">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;min-height:100dvh}
+.app{max-width:640px;margin:0 auto;padding:16px 16px calc(28px + env(safe-area-inset-bottom))}
+.view{display:none}.view.active{display:block}
+.card{background:#fff;border:1px solid #eef0f6;border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(31,36,48,.04);margin-bottom:12px}
+
+/* 顶部 */
+.top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.back{width:36px;height:36px;border-radius:11px;border:1px solid #e5e7eb;background:#fff;font-size:17px;color:#4a5168;cursor:pointer;flex:0 0 auto}
+.tag{font-size:11px;font-weight:800;color:#f59e0b;background:#fff7ed;border:1px solid #fed7aa;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.top h1{font-size:17px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prog-num{font-size:12px;color:#8a91a5;font-weight:700;white-space:nowrap}
+
+/* 说明条 */
+.intro{font-size:12.5px;color:#6b7280;line-height:1.85}
+.intro b{color:#2c3448}
+
+/* 对话卡列表 */
+.dlg{display:flex;align-items:center;gap:12px;padding:14px;min-width:0;cursor:pointer;transition:transform .16s,box-shadow .16s,border-color .16s}
+.dlg:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(91,108,255,.12);border-color:#d9ddff}
+.dlg-ico{width:42px;height:42px;border-radius:12px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto}
+.dlg-main{flex:1;min-width:0;overflow:hidden}
+.dlg-main h3{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlg-main p{font-size:11.5px;color:#8a91a5;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlg-right{text-align:right;flex:0 0 auto;max-width:40%}
+.lv{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#eef1ff;color:#5b6cff;white-space:nowrap}
+.lv.l2{background:#eef7ee;color:#15803d}
+.lv.l3{background:#fdeef4;color:#be185d}
+.best{display:block;font-size:11px;font-weight:800;color:#15803d;margin-top:5px}
+.best.none{color:#c3c8d8;font-weight:600}
+
+/* 进度条 */
+.track{height:6px;background:#eef1f6;border-radius:999px;overflow:hidden;margin-bottom:14px}
+.fill{height:100%;background:linear-gradient(90deg,#6c7bff,#5b6cff);border-radius:999px;transition:width .3s}
+
+/* 播放 */
+.play-big{width:100%;padding:22px 16px;border:none;border-radius:14px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:17px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px rgba(91,108,255,.22);transition:transform .14s}
+.play-big:active{transform:scale(.985)}
+.play-big.playing{background:linear-gradient(135deg,#8b97ff,#7480ff)}
+.play-big small{display:block;font-size:11.5px;font-weight:600;opacity:.85;margin-top:5px}
+.tools{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.tool{flex:1;min-width:96px;padding:9px 10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#4a5168;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+.tool.on{background:#eef1ff;border-color:#ccd6ff;color:#5b6cff}
+
+/* 提示与原句 */
+.hint{margin-top:10px;padding:11px 13px;border-radius:10px;background:#fffbf3;border:1px solid #fde9c8;font-size:13.5px;color:#8a6a2f;line-height:1.7;display:none}
+.reveal{margin-top:10px;padding:12px 13px;border-radius:10px;background:#f8faff;border:1px solid #e6eaff}
+.reveal b{font-size:11px;color:#8a91a5;letter-spacing:.5px}
+.rv-en{font-size:15px;font-weight:700;color:#2c3448;line-height:1.65;margin-top:5px;cursor:pointer}
+.rv-en:active{color:#5b6cff}
+.rv-zh{font-size:12px;color:#8a91a5;margin-top:5px;line-height:1.6}
+
+/* 输入 */
+.ipt{width:100%;padding:14px;border-radius:12px;border:2px solid #e8ecff;font-size:15px;font-family:inherit;outline:none;margin-top:12px;text-align:left;line-height:1.5}
+.ipt:focus{border-color:#b9c4ff}
+.ipt:disabled{background:#f8faff;color:#4a5168}
+.submit{width:100%;padding:14px;border:none;border-radius:12px;background:#5b6cff;color:#fff;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;margin-top:10px}
+.submit:disabled{opacity:.5}
+.next{width:100%;padding:14px;border:none;border-radius:12px;background:#111827;color:#fff;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;margin-top:10px}
+
+/* 逐词比对 */
+.diff{margin-top:14px;padding:13px;border-radius:12px;background:#fbfcff;border:1px solid #eef1f6;line-height:2.1;display:none}
+.diff.show{display:block}
+.tk{display:inline-block;padding:2px 6px;border-radius:6px;font-size:14px;font-weight:700;margin:0 3px 5px 0}
+.tk.ok{background:#e8f7ee;color:#15803d}
+.tk.miss{background:#fee2e2;color:#b91c1c;text-decoration:line-through;text-decoration-thickness:1.5px}
+.tk.extra{background:#f1f2f6;color:#9ca3af;text-decoration:line-through}
+.score-line{margin-top:8px;font-size:13px;color:#6b7280}
+.score-line b{font-size:16px;color:#b45309}
+.score-line b.good{color:#15803d}
+.legend{font-size:11px;color:#a3a9ba;margin-top:6px}
+
+/* 无声音警告 */
+.warn{display:none;margin-top:10px;padding:11px 13px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;font-size:12px;color:#9a5b13;line-height:1.7}
+.warn.show{display:block}
+
+/* 结果 */
+.big{text-align:center;padding:8px 0 4px}
+.big .ico{font-size:46px}
+.big h2{font-size:22px;margin:6px 0 4px}
+.big p{color:#6b7280;font-size:13px}
+.sent-row{display:flex;align-items:center;gap:10px;padding:8px 2px;font-size:12.5px;border-bottom:1px dashed #eef1f6}
+.sent-row:last-child{border-bottom:none}
+.sent-row .n{width:46px;color:#8a91a5;font-weight:700;flex:0 0 auto}
+.sent-row .bar{flex:1;height:7px;background:#eef1f6;border-radius:999px;overflow:hidden}
+.sent-row .bar i{display:block;height:100%;border-radius:999px;background:#6c7bff}
+.sent-row .bar i.mid{background:#f59e0b}
+.sent-row .bar i.low{background:#ef4444}
+.sent-row .v{width:42px;text-align:right;font-weight:800;color:#4a5168;flex:0 0 auto}
+
+.toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(12px);background:rgba(31,36,48,.94);color:#fff;font-size:13px;font-weight:700;padding:10px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:.24s;max-width:86vw;text-align:center;z-index:99}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 列表 ============ -->
+  <div class="view active" id="listView">
+    <div class="top">
+      <button class="back" onclick="location.href='game.html'">←</button>
+      <span class="tag">🎧 长对话</span>
+      <h1>长对话听写</h1>
+    </div>
+
+    <div class="card">
+      <p class="intro">
+        一次听一句，听到什么写什么，<b>标点、大小写不用管</b>。<br>
+        提交后当场标出：<b style="color:#15803d">绿色</b>是听对的，<b style="color:#b91c1c">红色</b>是漏掉或听错的，<b style="color:#9ca3af">灰色</b>是多写的。<br>
+        听不清可以反复重播，也可以看中文提示——但先自己听三遍。
+      </p>
+    </div>
+
+    <div id="dlgList"></div>
+
+    <p class="intro" style="text-align:center;margin-top:14px;color:#a3a9ba">
+      整句朗读走手机自带的语音引擎，<br>声音不如单词的真人录音自然，但练连读够用。
+    </p>
+  </div>
+
+  <!-- ============ 练习 ============ -->
+  <div class="view" id="drillView">
+    <div class="top">
+      <button class="back" id="backList">←</button>
+      <span class="tag">🎧 听写</span>
+      <h1 id="dlgTitle">—</h1>
+      <span class="prog-num" id="progNum">1/6</span>
+    </div>
+    <div class="track"><div class="fill" id="progFill" style="width:0"></div></div>
+
+    <div class="card">
+      <button class="play-big" id="playBig">🔊 点这里听第 1 句<small>反复听不扣分，听懂了再写</small></button>
+      <div class="tools">
+        <button class="tool" id="slowBtn">🐢 正常语速</button>
+        <button class="tool" id="hintBtn">💡 看中文提示</button>
+      </div>
+      <div class="hint" id="hintBox"></div>
+      <div class="warn" id="noVoice">
+        这台设备不支持整句朗读（常见于国产安卓自带浏览器）。<br>
+        换 Chrome / Edge / Safari 才有声音；现在可以先点下面「看原句」，对着抄写练手。
+      </div>
+
+      <input class="ipt" id="ansInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="听到什么就写什么，一句话">
+      <button class="submit" id="submitBtn">提交这一句</button>
+      <button class="next" id="nextLine" style="display:none">听下一句 →</button>
+
+      <div class="diff" id="diffBox">
+        <div id="tokens"></div>
+        <div class="score-line" id="scoreLine"></div>
+        <div class="legend">红=漏掉或听错（划掉的词是标准答案）　灰=多写</div>
+      </div>
+      <div id="revealBox"></div>
+    </div>
+  </div>
+
+  <!-- ============ 结果 ============ -->
+  <div class="view" id="doneView">
+    <div class="top">
+      <button class="back" id="doneBack">←</button>
+      <span class="tag">🎧 听写</span>
+      <h1 id="doneTitle">听完了</h1>
+    </div>
+    <div class="card">
+      <div class="big">
+        <div class="ico" id="doneIco">🎧</div>
+        <h2 id="doneRate">—</h2>
+        <p id="doneSub">—</p>
+      </div>
+    </div>
+    <div class="card">
+      <div id="doneLines"></div>
+    </div>
+    <button class="submit" id="againBtn">再听一遍</button>
+    <button class="next" id="nextDlg" style="background:#fff;color:#4a5168;border:1px solid #e5e7eb">练下一段对话 →</button>
+    <button class="next" id="backToList" style="background:#fff;color:#4a5168;border:1px solid #e5e7eb">返回列表</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="tts.js"></script>
+<script src="dictation.js"></script>
+<script src="dialogues.js"></script>
+<script>
+/* ================= 工具 ================= */
+function $(id){return document.getElementById(id);}
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),1900);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function show(v){document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));$(v).classList.add("active");window.scrollTo(0,0);}
+function bestKey(id){return "vq_dict_best_"+id;}
+function bestOf(id){
+  try{const raw=localStorage.getItem(bestKey(id));if(!raw)return null;const o=JSON.parse(raw);return typeof o.rate==="number"?o:null;}catch(e){return null;}
+}
+function saveBest(id,info){
+  const old=bestOf(id);
+  if(old&&old.rate>=info.rate)return;
+  try{localStorage.setItem(bestKey(id),JSON.stringify(info));}catch(e){}
+}
+const PREF="vq_dict_slow";
+let slow=false;
+try{slow=localStorage.getItem(PREF)==="1";}catch(e){}
+
+/* ================= 列表 ================= */
+const LV_TEXT={1:"日常",2:"校园生活",3:"进阶"};
+function renderList(){
+  const box=$("dlgList");box.innerHTML="";
+  DIALOGUES.forEach(d=>{
+    const best=bestOf(d.id);
+    const el=document.createElement("div");
+    el.className="card dlg";
+    el.innerHTML=`<div class="dlg-ico">💬</div>
+      <div class="dlg-main">
+        <h3>${esc(d.title)}</h3>
+        <p>${esc(d.scene)} · ${d.lines.length} 句 · 约 ${Math.max(1,Math.round(d.lines.length*0.7))} 分钟</p>
+      </div>
+      <div class="dlg-right">
+        <span class="lv l${d.level}">${LV_TEXT[d.level]}</span>
+        <span class="best ${best?"":"none"}">${best?"最好 "+best.rate+"%":"未练过"}</span>
+      </div>`;
+    el.onclick=()=>open(d.id);
+    box.appendChild(el);
+  });
+}
+
+/* ================= 练习状态 ================= */
+let D=null, idx=0, results=[], revealed=false, playing=false;
+
+function open(id){
+  D=DIALOGUES.filter(x=>x.id===id)[0];
+  if(!D)return;
+  idx=0;results=[];revealed=false;
+  $("dlgTitle").textContent=D.title;
+  $("doneTitle").textContent=D.title;
+  show("drillView");
+  renderLine();
+}
+
+function renderLine(){
+  const L=D.lines[idx];
+  revealed=false;
+  $("progNum").textContent=(idx+1)+"/"+D.lines.length;
+  $("progFill").style.width=(idx/D.lines.length*100)+"%";
+  $("ansInput").value="";
+  $("ansInput").disabled=false;
+  $("ansInput").placeholder="听到什么就写什么，一句话";
+  $("submitBtn").style.display="block";
+  $("submitBtn").disabled=false;
+  $("nextLine").style.display="none";
+  $("diffBox").classList.remove("show");
+  $("tokens").innerHTML="";
+  $("scoreLine").textContent="";
+  $("revealBox").innerHTML="";
+  $("hintBox").style.display="none";
+  $("hintBox").textContent="";
+  $("noVoice").classList.remove("show");
+  $("playBig").textContent="🔊 点这里听第 "+(idx+1)+" 句";
+  const sm=document.createElement("small");
+  sm.textContent="反复听不扣分，听懂了再写";
+  $("playBig").appendChild(sm);
+  paintSlow();
+  setTimeout(()=>{ if($("ansInput").disabled===false) $("ansInput").focus(); },80);
+}
+
+function paintSlow(){
+  $("slowBtn").textContent=slow?"🐢 慢速 0.75×":"🐢 正常语速";
+  $("slowBtn").classList.toggle("on",slow);
+}
+
+/* ================= 播放 ================= */
+function playLine(){
+  if(!D||playing)return;
+  const L=D.lines[idx];
+  if(!window.VQSpeech||typeof VQSpeech.speakSentence!=="function"){
+    $("noVoice").classList.add("show");
+    return;
+  }
+  playing=true;
+  $("playBig").classList.add("playing");
+  $("playBig").textContent="🔊 正在播…";
+  VQSpeech.speakSentence(L.en,{rate:slow?0.75:0.9,onDone:(ok,reason)=>{
+    playing=false;
+    $("playBig").classList.remove("playing");
+    $("playBig").textContent=ok?"🔊 再听一次":"🔇 没声音，点这里重试";
+    if(!ok&&reason!=="interrupted"){
+      $("noVoice").classList.add("show");
+    }
+  }});
+}
+
+/* ================= 判分 ================= */
+function submitLine(){
+  if(!D||results[idx])return;
+  const val=$("ansInput").value.trim();
+  if(!val){toast("先写点什么，哪怕只写听到的几个词");$("ansInput").focus();return;}
+  const L=D.lines[idx];
+  const r=VQDictation.check(L.en,val);
+  results[idx]=r;
+  paintResult(r,L);
+  $("ansInput").disabled=true;
+  $("submitBtn").style.display="none";
+  $("nextLine").style.display="block";
+  $("nextLine").textContent=(idx+1<D.lines.length)?"听下一句 →":"看看结果 →";
+}
+
+function paintResult(r,L){
+  $("tokens").innerHTML=r.tokens.map(t=>{
+    if(t.ok)return `<span class="tk ok">${esc(t.w)}</span>`;
+    if(t.miss)return `<span class="tk miss">${esc(t.w)}</span>`;
+    return `<span class="tk extra">${esc(t.w)}</span>`;
+  }).join("");
+  const pct=Math.round(r.rate*100);
+  $("scoreLine").innerHTML=`<b class="${r.perfect?"good":""}">${pct}%</b>　听对 ${r.correct}/${r.total} 词`
+    +(r.miss?` · 漏 ${r.miss}`:"")+(r.extra?` · 多 ${r.extra}`:"")
+    +(r.perfect?"　✔ 全对":"");
+  $("diffBox").classList.add("show");
+  // 答完才摊原句：先听、再写、后对照，顺序反了就成了抄写
+  $("revealBox").innerHTML=`<div class="reveal"><b>原句（点句子可再听）</b>
+    <div class="rv-en" id="rvEn">${esc(L.en)}</div>
+    <div class="rv-zh">${esc(L.zh)}</div></div>`;
+  $("rvEn").onclick=playLine;
+}
+
+/* ================= 结果页 ================= */
+function finishAll(){
+  const s=VQDictation.summary(results);
+  const pct=Math.round(s.rate*100);
+  show("doneView");
+  $("doneIco").textContent=pct>=90?"🎉":pct>=70?"🎧":"📝";
+  $("doneRate").textContent=pct+"%";
+  $("doneSub").textContent=`听对 ${s.correct}/${s.total} 词 · ${s.perfect}/${s.sentences} 句全对`
+    +(pct>=90?" · 耳朵很稳":pct>=70?" · 再听两遍就顺了":" · 先看提示再听一遍，别硬扛");
+  $("doneLines").innerHTML=results.map((r,i)=>{
+    const p=Math.round((r?r.rate:0)*100);
+    const cls=p>=80?"":p>=50?"mid":"low";
+    return `<div class="sent-row"><span class="n">第 ${i+1} 句</span>
+      <span class="bar"><i class="${cls}" style="width:${p}%"></i></span>
+      <span class="v">${p}%</span></div>`;
+  }).join("");
+  saveBest(D.id,{rate:pct,at:Date.now(),sentences:s.sentences});
+
+  const i=DIALOGUES.indexOf(D);
+  const nx=DIALOGUES[i+1];
+  $("nextDlg").textContent=nx?("练下一段："+nx.title+" →"):"已经是最后一段了";
+  $("nextDlg").disabled=!nx;
+  $("nextDlg").style.opacity=nx?1:.45;
+  $("nextDlg").onclick=()=>{if(nx)open(nx.id);};
+}
+
+/* ================= 事件 ================= */
+$("playBig").onclick=playLine;
+$("slowBtn").onclick=()=>{
+  slow=!slow;
+  try{localStorage.setItem(PREF,slow?"1":"0");}catch(e){}
+  paintSlow();
+  toast(slow?"慢速模式：0.75 倍速":"恢复正常语速");
+  playLine();
+};
+$("hintBtn").onclick=()=>{
+  if(!D)return;
+  const box=$("hintBox");
+  if(box.style.display==="block"){box.style.display="none";return;}
+  box.textContent=D.lines[idx].zh;
+  box.style.display="block";
+  revealed=true;
+};
+$("submitBtn").onclick=submitLine;
+$("ansInput").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){e.preventDefault();submitLine();}
+});
+$("nextLine").onclick=()=>{
+  if(idx+1>=D.lines.length){finishAll();return;}
+  idx++;
+  renderLine();
+  playLine();     // 点「下一句」的同一个手势里播放，iOS 才肯出声
+};
+$("backList").onclick=()=>{
+  if(results.length&&results.filter(Boolean).length<D.lines.length){
+    if(!confirm("这一段的听写还没做完，退出不记录成绩，确定？"))return;
+  }
+  renderList();show("listView");
+};
+$("doneBack").onclick=()=>{
+  const i=DIALOGUES.indexOf(D),prev=DIALOGUES[i-1];
+  if(!prev){open(D.id);return;}
+  open(prev.id);
+};
+$("againBtn").onclick=()=>open(D.id);
+$("backToList").onclick=()=>{renderList();show("listView");};
+
+/* 支持 ?id=cafe 直接开某一段（方便分享，也方便只练某一段） */
+(function boot(){
+  const qid=new URLSearchParams(location.search).get("id");
+  const hit=qid&&DIALOGUES.filter(d=>d.id===qid)[0];
+  if(hit)open(qid);
+  else renderList();
+})();
+</script>
+</body>
+</html>
