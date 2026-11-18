@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>响应式预览（开发用，不发布）</title>
+<style>
+  body{margin:0;background:#dfe3ee;font:12px/1.4 system-ui,sans-serif;padding:12px}
+  iframe{border:1px solid #b9c0d4;border-radius:12px;background:#fff;display:block;margin:0 auto}
+</style>
+</head>
+<body>
+  <iframe id="f" width="375" height="3200" title="手机视图"></iframe>
+<script>
+  // 用法：/tools/preview.html?p=../game.html%3Fcat%3Dcet4&w=375&h=3200
+  var q = new URLSearchParams(location.search);
+  var f = document.getElementById("f");
+  f.src = q.get("p") || "../index.html";
+  f.width = q.get("w") || "375";
+  f.height = q.get("h") || "3200";
+</script>
+</body>
+</html>

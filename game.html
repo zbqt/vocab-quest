@@ -5,18 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Vocab Quest</title>
 <meta name="theme-color" content="#5b6cff">
+<meta name="color-scheme" content="light">
 <meta name="description" content="Vocab Quest 闯关：每关 12 个词全部出题，FSRS-5 算出每个词的到期日，今天该背几个一清二楚。">
+<link rel="canonical" href="https://zbqt.github.io/vocab-quest/game.html">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<link rel="stylesheet" href="./ui.css?v=0.14.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#eef2ff;color:#1f2937;min-height:100vh;min-height:100dvh;-webkit-tap-highlight-color:transparent}
-button{font-family:inherit;cursor:pointer;border:none;outline:none}
+/* 原来这里写了 outline:none，键盘用户按 Tab 完全看不出焦点落在哪 */
+button{font-family:inherit;cursor:pointer;border:none}
 .app{max-width:900px;margin:0 auto;padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
 .card{background:#fff;border-radius:16px;box-shadow:0 4px 16px rgba(40,50,90,.08)}
 
@@ -47,7 +51,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .wb{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:5px}
 .wb-bar{width:100%;border-radius:6px;background:#ecefff;min-height:5px}
 .wb-bar.on{background:linear-gradient(180deg,#8b97ff,#5b6cff)}
-.wb-n{font-size:10px;color:#9ca3af;white-space:nowrap}
+.wb-n{font-size:10px;color:#5f6779;white-space:nowrap}
 .wb-today .wb-n{color:#5b6cff;font-weight:800}
 .kbd-tip{display:none}
 @media (hover:hover) and (pointer:fine){.kbd-tip{display:inline}}
@@ -75,7 +79,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .unit-name{display:flex;align-items:center;gap:10px;font-weight:700}
 .unit-num{width:28px;height:28px;border-radius:8px;background:#5b6cff;color:#fff;display:grid;place-items:center;font-size:13px}
 .unit-meta{font-size:12px;color:#6b7280;font-weight:400;margin-top:2px}
-.arrow{transition:.2s;color:#9ca3af}
+.arrow{transition:.2s;color:#5f6779}
 .arrow.open{transform:rotate(180deg)}
 .level-list{padding:0 10px 10px}
 .level-row{display:grid;grid-template-columns:60px 1fr auto;align-items:center;gap:10px;padding:10px 8px;border-radius:12px;margin-bottom:5px;background:#f8faff;border:1px solid #eef1f6}
@@ -85,7 +89,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .stars{color:#f59e0b;letter-spacing:2px}
 .actions{display:flex;gap:6px}
 .actions .btn{padding:7px 11px;font-size:12px}
-.lock-txt{font-size:12px;color:#9ca3af;text-align:right;white-space:nowrap}
+.lock-txt{font-size:12px;color:#5f6779;text-align:right;white-space:nowrap}
 
 /* 游戏页 */
 .view{display:none}
@@ -108,7 +112,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .audio-btn.playing{background:#eef1ff;border-color:#6c7bff;color:#4653d4}
 .audio-btn:disabled{opacity:.6;cursor:wait}
 .phonetic{font-size:14px;color:#6b7280;font-weight:600;letter-spacing:.5px}
-.audio-status{font-size:11px;color:#9ca3af}
+.audio-status{font-size:11px;color:#5f6779}
 .question-title{text-align:center;font-size:14px;color:#6b7280;margin:8px 0 12px}
 .options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .option{padding:16px 12px;border-radius:14px;background:#fff;border:2px solid #e8ecff;font-size:18px;font-weight:700;transition:.15s}
@@ -129,7 +133,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .combo{text-align:center;font-size:13px;color:#7c3aed;font-weight:700;min-height:18px;margin-top:4px}
 .hp-row{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
 .hp-hearts{font-size:18px;letter-spacing:3px}
-.game-hint{font-size:12px;color:#9ca3af}
+.game-hint{font-size:12px;color:#5f6779}
 .next-btn{width:100%;margin-top:12px;padding:13px;font-size:15px;border-radius:12px;background:#6c7bff;color:#fff;font-weight:800}
 .skip-known{width:100%;margin-top:10px;padding:9px;border-radius:10px;background:#f6f7fb;color:#8b93a7;font-size:12px;font-weight:700;border:1px dashed #d8dded;transition:.15s}
 .skip-known:hover{background:#eef1ff;color:#5b6cff;border-color:#c3ccff}
@@ -162,12 +166,17 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .wrong-item .audio-btn,.todo-item .audio-btn{padding:3px 9px;font-size:11px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:#111827;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.foot-tip{text-align:center;color:#9ca3af;font-size:11px;margin-top:14px}
+.foot-tip{text-align:center;color:#5f6779;font-size:11px;margin-top:14px}
 @media(max-width:600px){
-  .overview{grid-template-columns:1fr 1fr}
+  .overview{grid-template-columns:repeat(3,1fr);gap:8px}
+  .ov-card{padding:12px 6px}
+  .ov-card h2{font-size:20px}
+  .ov-card p{font-size:11px}
   .level-row{grid-template-columns:52px 1fr}
   .actions{grid-column:1/-1;justify-content:flex-start}
   .options{grid-template-columns:1fr}
+  .hp-row{flex-direction:column;align-items:flex-start;gap:5px}
+  .game-hint{font-size:11px;line-height:1.55}
   .stats{margin-top:8px;width:100%}
   header{flex-wrap:wrap}
   .hero-title{font-size:21px}
@@ -191,14 +200,14 @@ body.shuf .stars{color:#7c3aed}
 .hero-sub{font-size:12px;color:#6b7280}
 .hero-badge{flex:none;text-align:center;background:#fff;border-radius:14px;padding:9px 13px;box-shadow:0 2px 10px rgba(40,50,90,.08)}
 .hero-badge b{display:block;font-size:19px;color:#5b6cff;line-height:1.15}
-.hero-badge span{font-size:10px;color:#9ca3af}
+.hero-badge span{font-size:10px;color:#5f6779}
 .hero-bar{height:8px;background:#e3e8ff;border-radius:999px;overflow:hidden;margin:15px 0 13px}
 .hero-bar-fill{height:100%;width:0;background:linear-gradient(90deg,#6c7bff,#4653d4);transition:.35s}
 .hero-btn{width:100%;padding:15px;border-radius:14px;background:#5b6cff;color:#fff;font-size:16px;font-weight:800;transition:.15s}
 .hero-btn:hover{background:#4653d4}
 .hero-btn.done{background:#e8f7ee;color:#15803d}
 .hero-btn:disabled{opacity:.5;cursor:not-allowed}
-.hero-foot{font-size:11px;color:#9ca3af;text-align:center;margin-top:10px;line-height:1.8}
+.hero-foot{font-size:11px;color:#5f6779;text-align:center;margin-top:10px;line-height:1.8}
 .hero-foot a{color:#5b6cff;font-weight:700;text-decoration:none;cursor:pointer}
 
 /* 定级卡 */
@@ -224,10 +233,38 @@ body.shuf .stars{color:#7c3aed}
 .listen-row .level-id{color:#f59e0b;font-size:16px}
 .listen-row .stars{color:#f59e0b}
 body.shuf .listen-row .level-id{color:#f59e0b}
+
+/* ---------- 首页分区标题 ---------- */
+.sec-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:16px 4px 9px}
+.sec-title h2{font-size:15px;font-weight:800;letter-spacing:-.2px}
+.sec-title span{font-size:11px;color:#5f6779}
+
+/* ---------- 答题反馈的动效 ----------
+   答错时选项抖一下、答对时反馈弹一下：不用读字也知道结果。
+   减弱动效的开关在 ui.css 里统一关掉了。 */
+@keyframes vq-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+@keyframes vq-pop{0%{transform:scale(.86);opacity:.4}60%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}
+@keyframes vq-fade-up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.option.wrong{animation:vq-shake .32s ease}
+.feedback.good,.feedback.bad{animation:vq-pop .26s ease}
+.game-card-enter{animation:vq-fade-up .22s ease}
+
+/* 触屏设备没有 hover，把 hover 的位移去掉，免得手指点完样式卡住 */
+@media (hover:none){
+  .option:hover:not(:disabled){border-color:#e8ecff;background:#fff}
+  .level-row:hover{background:#f8faff}
+  .hero-btn:hover{background:#5b6cff}
+  .btn-primary:hover{background:#5b6cff}
+  .audio-btn:hover{border-color:#e5e7eb;background:#fff}
+  .mode-tab:hover{color:#6b7280}
+  .zh-chip:hover{background:transparent}
+  .back-btn:hover{border-color:#e5e7eb}
+}
 </style>
 </head>
 <body>
-<div class="app">
+<a class="vq-skip" href="#main">跳到主要内容</a>
+<main class="app" id="main">
 
   <!-- ============ 首页 ============ -->
   <div class="view active" id="homeView">
@@ -235,7 +272,7 @@ body.shuf .listen-row .level-id{color:#f59e0b}
       <div class="brand">
         <div class="logo-box">VQ</div>
         <div>
-          <div class="logo-text">Vocab Quest<span style="font-size:12px;background:#eef1ff;color:#5b6cff;padding:2px 6px;border-radius:6px;margin-left:6px" id="stageTag">CET-4</span></div>
+          <h1 class="logo-text">Vocab Quest<span style="font-size:12px;background:#eef1ff;color:#5b6cff;padding:2px 6px;border-radius:6px;margin-left:6px" id="stageTag">CET-4</span></h1>
           <div class="logo-sub" id="logoSub">英语四级核心词闯关</div>
           <button type="button" id="voiceBtn" style="margin-top:7px;padding:4px 11px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;color:#5b6cff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">🎙 美音</button>
         </div>
@@ -286,6 +323,12 @@ body.shuf .listen-row .level-id{color:#f59e0b}
       <div class="week-bars" id="weekBars"></div>
     </div>
 
+    <!-- 三张入口卡原来散在页面各处，长得也不一样；统一成一组「专项训练」，不按单元走 -->
+    <div class="sec-title">
+      <h2>专项训练</h2>
+      <span>不按单元走，专挑一个能力练</span>
+    </div>
+
     <div class="review-card" id="rescueCard" style="display:none;background:linear-gradient(135deg,#fff7ed,#fef2f2);border-color:#fed7aa">
       <div>
         <h3>🩹 错词重练</h3>
@@ -323,7 +366,7 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 4px 8px">
       <h3 style="font-size:16px">关卡地图</h3>
-      <span style="font-size:11px;color:#9ca3af">想按单元刷就点这里 · 通关后可复习/测试</span>
+      <span style="font-size:11px;color:#5f6779">想按单元刷就点这里 · 通关后可复习/测试</span>
     </div>
     <div id="unitContainer"></div>
     <div class="foot-tip" id="footTip">词库 · 词义匹配 + 拼写 + 听音辨汉语 + 语法 · 每关覆盖全部单词<br>🎧 听音辨汉语：只从学过的词里抽题，练「声音 → 汉语意思」这条直路<span class="kbd-tip"> · 键盘 1-4 选选项、回车下一题、P 发音</span></div>
@@ -339,29 +382,29 @@ body.shuf .listen-row .level-id{color:#f59e0b}
   <!-- ============ 游戏页 ============ -->
   <div class="view" id="gameView">
     <div class="back-bar">
-      <button class="back-btn" id="backHome">←</button>
+      <button class="back-btn" id="backHome" aria-label="退出本关，返回关卡地图">←</button>
       <span class="mode-tag" id="modeTag">闯关</span>
-      <span style="font-size:13px;color:#6b7280;font-weight:700" id="levelTitle">第1单元 LV1</span>
+      <span style="font-size:13px;color:#5f6779;font-weight:700" id="levelTitle">第1单元 LV1</span>
     </div>
     <div class="card" style="padding:16px">
       <div class="progress-row">
-        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
-        <div class="qcount" id="qcount">0/10</div>
+        <div class="progress-track" id="progTrack" role="progressbar" aria-label="本关进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-fill" id="progFill"></div></div>
+        <div class="qcount" id="qcount" aria-live="off">0/10</div>
       </div>
       <div class="enemy">
         <div class="enemy-label" id="enemyLabel">👾 怪物来袭！</div>
-        <div class="enemy-word" id="cnWord">—</div>
+        <div class="enemy-word" id="cnWord" lang="en">—</div>
         <div class="audio-row" id="audioRow" style="display:none">
           <button class="audio-btn" id="playBtn">🔊 播放发音</button>
           <span class="phonetic" id="phonetic"></span>
-          <span class="audio-status" id="audioStatus"></span>
+          <span class="audio-status" id="audioStatus" role="status" aria-live="polite"></span>
         </div>
       </div>
       <div class="question-title" id="qTitle">点击下方选项击败它</div>
       <div class="options" id="optionsBox"></div>
       <div class="opt-defs" id="optDefs" style="display:none"></div>
-      <div class="feedback" id="feedback"></div>
-      <div class="combo" id="combo"></div>
+      <div class="feedback" id="feedback" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="combo" id="combo" aria-live="polite"></div>
       <div class="hp-row">
         <div class="hp-hearts" id="hpHearts">♥ ♥ ♥</div>
         <div class="game-hint" id="gameHint">答对 8 题通关，答错扣 1 体力</div>
@@ -381,7 +424,7 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
     <div class="card" style="padding:16px" id="placeQuiz">
       <div class="progress-row">
-        <div class="progress-track"><div class="progress-fill" id="placeFill"></div></div>
+        <div class="progress-track" id="placeTrack" role="progressbar" aria-label="定级测试进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-fill" id="placeFill"></div></div>
       </div>
       <div class="place-enemy">
         <div class="enemy-label">这个词的中文意思是？</div>
@@ -410,8 +453,8 @@ body.shuf .listen-row .level-id{color:#f59e0b}
     </div>
   </div>
 
-</div>
-<div class="overlay" id="overlay">
+</main>
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="resTitle" aria-describedby="resSub">
   <div class="result-box">
     <div class="result-body" id="resultBody">
       <div class="big" id="resBig">🎉</div>
@@ -434,19 +477,19 @@ body.shuf .listen-row .level-id{color:#f59e0b}
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="tts.js?v=0.13.0"></script>
-<script src="vocab_cz.js?v=0.13.0"></script>
-<script src="vocab_gz.js?v=0.13.0"></script>
-<script src="vocab.js?v=0.13.0"></script>
-<script src="vocab_c6.js?v=0.13.0"></script>
-<script src="grammar.js?v=0.13.0"></script>
-<script src="dictation.js?v=0.13.0"></script>
-<script src="zh-match.js?v=0.13.0"></script>
-<script src="fsrs.js?v=0.13.0"></script>
-<script src="engine.js?v=0.13.0"></script>
-<script src="cloud-sync.js?v=0.13.0"></script>
+<script src="tts.js?v=0.14.0"></script>
+<script src="vocab_cz.js?v=0.14.0"></script>
+<script src="vocab_gz.js?v=0.14.0"></script>
+<script src="vocab.js?v=0.14.0"></script>
+<script src="vocab_c6.js?v=0.14.0"></script>
+<script src="grammar.js?v=0.14.0"></script>
+<script src="dictation.js?v=0.14.0"></script>
+<script src="zh-match.js?v=0.14.0"></script>
+<script src="fsrs.js?v=0.14.0"></script>
+<script src="engine.js?v=0.14.0"></script>
+<script src="cloud-sync.js?v=0.14.0"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -544,6 +587,12 @@ $("impBtn").onclick=()=>{
 /* ================= 工具 ================= */
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[b[i],b[j]]=[b[j],b[i]];}return b;}
 function $(id){return document.getElementById(id);}
+/* 进度条同步给读屏：光有宽度，屏幕阅读器只知道「有个条」，不知道走到哪了 */
+function setProgress(trackId,fillId,pct){
+  var p=Math.max(0,Math.min(100,Math.round(pct||0)));
+  var f=$(fillId);if(f)f.style.width=p+"%";
+  var t=$(trackId);if(t)t.setAttribute("aria-valuenow",String(p));
+}
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
 function todayStr(){return VQ.dayKey(new Date());}
 function renderHearts(){$("hpHearts").textContent=G&&G.mode==="play"?Array(3).fill(0).map((_,i)=>i<G.hp?"♥":"♡").join(" "):"—";}
@@ -1095,7 +1144,7 @@ function renderQ(){
     :q.type==="lookZh"?"看见就懂，不用在心里先翻译两遍"
     :(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词");
   $("qcount").textContent=(G.idx+1)+"/"+T;
-  $("progFill").style.width=(G.idx/T*100)+"%";
+  setProgress("progTrack","progFill",G.idx/T*100);
   $("feedback").textContent="";$("feedback").className="feedback";
   $("combo").textContent=G.combo>=2?`🔥 连对 ${G.combo}！`:"";
   renderHearts();
@@ -1319,11 +1368,22 @@ function onWrong(answer){
   // 同时记 en 和 ans：听音选义那类题的答案是中文，结算时不能用中文去比对词形
   G.wrongList.push({zh:(G.qs[G.idx].zh||G.qs[G.idx].tip||"语法题"),ans:answer,ph:(G.qs[G.idx].ph||""),en:(G.qs[G.idx].en||"")});
 }
+/* 手机上选项下面还摊着四条完整释义，结论容易被推到屏幕外 —— 答完就把它带进视野。
+   jsdom 没有 scrollIntoView，判断一下再调，别为了滚动把测试搞崩。 */
+function revealFeedback(){
+  var f=$("feedback");
+  if(!f||typeof f.scrollIntoView!=="function")return;
+  var r=f.getBoundingClientRect();
+  if(r.bottom>innerHeight-12||r.top<0){
+    try{f.scrollIntoView({block:"nearest",behavior:"smooth"});}catch(e){f.scrollIntoView();}
+  }
+}
 function afterAnswer(){
   renderHearts();
-  $("progFill").style.width=((G.idx+1)/G.qs.length*100)+"%";
+  setProgress("progTrack","progFill",(G.idx+1)/G.qs.length*100);
   if(G.mode==="play"&&G.hp<=0){G.finishTimer=setTimeout(()=>finish(false),700);return;}
   $("nextBtn").style.display="block";
+  revealFeedback();
 }
 $("nextBtn").onclick=()=>{
   if(!G||G.finished)return;
@@ -1523,7 +1583,7 @@ function renderPlace(){
   if(!q){finishPlacement();return;}
   P.answered=false;
   $("placeCount").textContent=(P.idx+1)+"/"+P.qs.length;
-  $("placeFill").style.width=(P.idx/P.qs.length*100)+"%";
+  setProgress("placeTrack","placeFill",P.idx/P.qs.length*100);
   $("placeWord").textContent=q.en;
   $("placePh").textContent=q.ph?"/"+q.ph+"/":"";
   $("placePlay").onclick=()=>{speakWord(q.en,()=>{});};
@@ -1610,6 +1670,19 @@ $("footTip").textContent=CFG.name+"词库 · 词义匹配 + 拼写 + 语法 · �
 
 initVoiceBtn();
 renderHome();
+
+/* 深链入口：首页的「开始学习 / 听音辨汉语 / 错词重练」直接落到对应动作，
+   省掉「进来还得自己再点一次」。act 只决定进来的第一件事，不写进存档。 */
+(function handleAct(){
+  const act=(new URLSearchParams(location.search).get("act")||"").toLowerCase();
+  if(!act)return;
+  try{
+    if(act==="daily")openDaily();
+    else if(act==="listen")startListeningAll();
+    else if(act==="rescue")openRescue();
+    else if(act==="place")startPlacement();
+  }catch(e){}
+})();
 
 /* ================= 云服务：账号登录 + 存档备份（本机存档仍是主存档） ================= */
 if(window.VQCloud){

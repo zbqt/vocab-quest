@@ -12,6 +12,9 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<link rel="canonical" href="https://zbqt.github.io/vocab-quest/listening.html">
+<link rel="stylesheet" href="./ui.css?v=0.14.0">
+<meta name="color-scheme" content="light">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <style>
@@ -25,8 +28,8 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .back{width:36px;height:36px;border-radius:11px;border:1px solid #e5e7eb;background:#fff;font-size:17px;color:#4a5168;cursor:pointer;flex:0 0 auto}
 .tag{font-size:11px;font-weight:800;color:#f59e0b;background:#fff7ed;border:1px solid #fed7aa;padding:4px 9px;border-radius:999px;white-space:nowrap}
-.top h1{font-size:17px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.prog-num{font-size:12px;color:#8a91a5;font-weight:700;white-space:nowrap}
+.top h1,.top h2{font-size:17px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prog-num{font-size:12px;color:#5f6779;font-weight:700;white-space:nowrap}
 
 /* 说明条 */
 .intro{font-size:12.5px;color:#6b7280;line-height:1.85}
@@ -38,13 +41,13 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .dlg-ico{width:42px;height:42px;border-radius:12px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto}
 .dlg-main{flex:1;min-width:0;overflow:hidden}
 .dlg-main h3{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dlg-main p{font-size:11.5px;color:#8a91a5;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlg-main p{font-size:11.5px;color:#5f6779;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dlg-right{text-align:right;flex:0 0 auto;max-width:40%}
 .lv{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#eef1ff;color:#5b6cff;white-space:nowrap}
 .lv.l2{background:#eef7ee;color:#15803d}
 .lv.l3{background:#fdeef4;color:#be185d}
 .best{display:block;font-size:11px;font-weight:800;color:#15803d;margin-top:5px}
-.best.none{color:#c3c8d8;font-weight:600}
+.best.none{color:#9aa2b5;font-weight:600}
 
 /* 进度条 */
 .track{height:6px;background:#eef1f6;border-radius:999px;overflow:hidden;margin-bottom:14px}
@@ -54,7 +57,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .who{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .who-badge{width:22px;height:22px;border-radius:7px;background:#eef1ff;color:#5b6cff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .who-badge.b{background:#fff1e6;color:#d97706}
-.who-txt{font-size:11.5px;color:#8a91a5;font-weight:700}
+.who-txt{font-size:11.5px;color:#5f6779;font-weight:700}
 .dots{display:flex;gap:5px;margin-left:auto;align-items:center}
 .dot{width:6px;height:6px;border-radius:50%;background:#e2e6f0;transition:.18s}
 .dot.on{background:#5b6cff;transform:scale(1.5)}
@@ -72,21 +75,21 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .24s;z-index:61;max-height:74vh;overflow:auto}
 .sheet.show{transform:translateY(0)}
 .sheet h3{font-size:15px;font-weight:800;margin-bottom:4px}
-.sheet p{font-size:11.5px;color:#8a91a5;line-height:1.7;margin-bottom:10px}
+.sheet p{font-size:11.5px;color:#5f6779;line-height:1.7;margin-bottom:10px}
 .vrow{display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:11px;border:1px solid #eef1f6;margin-bottom:7px;cursor:pointer}
 .vrow.sel{border-color:#b9c4ff;background:#f6f8ff}
 .vrow .vname{flex:1;min-width:0;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vtag{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;background:#eef7ee;color:#15803d;flex:0 0 auto}
-.vtag.plain{background:#f1f2f6;color:#8a91a5}
+.vtag.plain{background:#f1f2f6;color:#5f6779}
 .vplay{width:30px;height:30px;border-radius:9px;border:1px solid #e5e7eb;background:#fff;font-size:14px;cursor:pointer;flex:0 0 auto}
 
 /* 提示与原句 */
 .hint{margin-top:10px;padding:11px 13px;border-radius:10px;background:#fffbf3;border:1px solid #fde9c8;font-size:13.5px;color:#8a6a2f;line-height:1.7;display:none}
 .reveal{margin-top:10px;padding:12px 13px;border-radius:10px;background:#f8faff;border:1px solid #e6eaff}
-.reveal b{font-size:11px;color:#8a91a5;letter-spacing:.5px}
+.reveal b{font-size:11px;color:#5f6779;letter-spacing:.5px}
 .rv-en{font-size:15px;font-weight:700;color:#2c3448;line-height:1.65;margin-top:5px;cursor:pointer}
 .rv-en:active{color:#5b6cff}
-.rv-zh{font-size:12px;color:#8a91a5;margin-top:5px;line-height:1.6}
+.rv-zh{font-size:12px;color:#5f6779;margin-top:5px;line-height:1.6}
 
 /* 输入 */
 .ipt{width:100%;padding:14px;border-radius:12px;border:2px solid #e8ecff;font-size:15px;font-family:inherit;outline:none;margin-top:12px;text-align:left;line-height:1.5}
@@ -102,11 +105,11 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .tk{display:inline-block;padding:2px 6px;border-radius:6px;font-size:14px;font-weight:700;margin:0 3px 5px 0}
 .tk.ok{background:#e8f7ee;color:#15803d}
 .tk.miss{background:#fee2e2;color:#b91c1c;text-decoration:line-through;text-decoration-thickness:1.5px}
-.tk.extra{background:#f1f2f6;color:#9ca3af;text-decoration:line-through}
+.tk.extra{background:#f1f2f6;color:#737b8d;text-decoration:line-through}
 .score-line{margin-top:8px;font-size:13px;color:#6b7280}
 .score-line b{font-size:16px;color:#b45309}
 .score-line b.good{color:#15803d}
-.legend{font-size:11px;color:#a3a9ba;margin-top:6px}
+.legend{font-size:11px;color:#737b8d;margin-top:6px}
 
 /* 无声音警告 */
 .warn{display:none;margin-top:10px;padding:11px 13px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;font-size:12px;color:#9a5b13;line-height:1.7}
@@ -119,7 +122,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .big p{color:#6b7280;font-size:13px}
 .sent-row{display:flex;align-items:center;gap:10px;padding:8px 2px;font-size:12.5px;border-bottom:1px dashed #eef1f6}
 .sent-row:last-child{border-bottom:none}
-.sent-row .n{width:46px;color:#8a91a5;font-weight:700;flex:0 0 auto}
+.sent-row .n{width:46px;color:#5f6779;font-weight:700;flex:0 0 auto}
 .sent-row .bar{flex:1;height:7px;background:#eef1f6;border-radius:999px;overflow:hidden}
 .sent-row .bar i{display:block;height:100%;border-radius:999px;background:#6c7bff}
 .sent-row .bar i.mid{background:#f59e0b}
@@ -137,12 +140,13 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 </style>
 </head>
 <body>
-<div class="app">
+<a class="vq-skip" href="#main">跳到主要内容</a>
+<main class="app" id="main">
 
   <!-- ============ 列表 ============ -->
   <div class="view active" id="listView">
     <div class="top">
-      <button class="back" onclick="location.href='game.html'">←</button>
+      <button class="back" onclick="location.href='game.html'" aria-label="返回闯关首页">←</button>
       <span class="tag">🎧 长对话</span>
       <h1>长对话听写</h1>
     </div>
@@ -150,14 +154,14 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div class="card">
       <p class="intro">
         一次听一句，听到什么写什么，<b>标点、大小写不用管</b>。<br>
-        提交后当场标出：<b style="color:#15803d">绿色</b>是听对的，<b style="color:#b91c1c">红色</b>是漏掉或听错的，<b style="color:#9ca3af">灰色</b>是多写的。<br>
+        提交后当场标出：<b style="color:#15803d">绿色</b>是听对的，<b style="color:#b91c1c">红色</b>是漏掉或听错的，<b style="color:#737b8d">灰色</b>是多写的。<br>
         听不清可以反复重播，也可以看中文提示——但先自己听三遍。
       </p>
     </div>
 
     <div id="dlgList"></div>
 
-    <p class="intro" style="text-align:center;margin-top:14px;color:#a3a9ba">
+    <p class="intro" style="text-align:center;margin-top:14px;color:#737b8d">
       每一句都有站点内置的人声录音，第一次打开需要联网取一次，之后离线也能听。<br>
       手机上不需要额外的语音引擎，也不用换浏览器。
     </p>
@@ -166,12 +170,12 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <!-- ============ 练习 ============ -->
   <div class="view" id="drillView">
     <div class="top">
-      <button class="back" id="backList">←</button>
+      <button class="back" id="backList" aria-label="返回对话列表">←</button>
       <span class="tag">🎧 听写</span>
-      <h1 id="dlgTitle">—</h1>
+      <h2 id="dlgTitle">—</h2>
       <span class="prog-num" id="progNum">1/6</span>
     </div>
-    <div class="track"><div class="fill" id="progFill" style="width:0"></div></div>
+    <div class="track" id="progTrack" role="progressbar" aria-label="本段对话进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="progFill" style="width:0"></div></div>
 
     <div class="card">
       <div class="who">
@@ -193,7 +197,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
         这一句也可以先「看中文提示」，看着听一遍再写。
       </div>
 
-      <input class="ipt" id="ansInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="听到什么就写什么，一句话">
+      <input class="ipt" id="ansInput" type="text" aria-label="写下你听到的那一句" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="听到什么就写什么，一句话">
       <button class="submit" id="submitBtn">提交这一句</button>
       <button class="next" id="nextLine" style="display:none">听下一句 →</button>
 
@@ -209,9 +213,9 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <!-- ============ 结果 ============ -->
   <div class="view" id="doneView">
     <div class="top">
-      <button class="back" id="doneBack">←</button>
+      <button class="back" id="doneBack" aria-label="返回对话列表">←</button>
       <span class="tag">🎧 听写</span>
-      <h1 id="doneTitle">听完了</h1>
+      <h2 id="doneTitle">听完了</h2>
     </div>
     <div class="card">
       <div class="big">
@@ -225,7 +229,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     </div>
     <div class="card" id="missCard" style="display:none">
       <h3 style="font-size:15px;font-weight:800">这几句里没听出来的词</h3>
-      <p style="font-size:12px;color:#8a91a5;line-height:1.7;margin-top:5px">
+      <p style="font-size:12px;color:#5f6779;line-height:1.7;margin-top:5px">
         点一下听发音。这些词已经记下了，去闯关页的「错词重练」还能再遇到。
       </p>
       <div class="chips" id="missChips"></div>
@@ -234,9 +238,9 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <button class="next" id="nextDlg" style="background:#fff;color:#4a5168;border:1px solid #e5e7eb">练下一段对话 →</button>
     <button class="next" id="backToList" style="background:#fff;color:#4a5168;border:1px solid #e5e7eb">返回列表</button>
   </div>
-</div>
+</main>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <div class="sheet-mask" id="mask"></div>
 <div class="sheet" id="srcSheet">
@@ -253,11 +257,11 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <button class="tool" id="sheetClose" style="width:100%;margin-top:4px">收起</button>
 </div>
 
-<script src="prosody.js?v=0.13.0"></script>
-<script src="sentence-audio.js?v=0.13.0"></script>
-<script src="tts.js?v=0.13.0"></script>
-<script src="dictation.js?v=0.13.0"></script>
-<script src="dialogues.js?v=0.13.0"></script>
+<script src="prosody.js?v=0.14.0"></script>
+<script src="sentence-audio.js?v=0.14.0"></script>
+<script src="tts.js?v=0.14.0"></script>
+<script src="dictation.js?v=0.14.0"></script>
+<script src="dialogues.js?v=0.14.0"></script>
 <script>
 /* ================= 工具 ================= */
 function $(id){return document.getElementById(id);}
@@ -332,7 +336,9 @@ function renderLine(){
   const L=D.lines[idx];
   revealed=false;
   $("progNum").textContent=(idx+1)+"/"+D.lines.length;
-  $("progFill").style.width=(idx/D.lines.length*100)+"%";
+  const pct=Math.round(idx/D.lines.length*100);
+  $("progFill").style.width=pct+"%";
+  $("progTrack").setAttribute("aria-valuenow",String(pct));
   $("ansInput").value="";
   $("ansInput").disabled=false;
   $("ansInput").placeholder="听到什么就写什么，一句话";
@@ -556,7 +562,7 @@ function openSrcSheet(){
     const row=document.createElement("div");
     row.className="vrow"+(it.id===cur?" sel":"");
     row.innerHTML=`<span class="vname" style="white-space:normal;line-height:1.45">${it.name}`
-      +`<br><span style="font-size:11px;color:#8a91a5;font-weight:500">${it.desc}</span></span>`;
+      +`<br><span style="font-size:11px;color:#5f6779;font-weight:500">${it.desc}</span></span>`;
     row.onclick=()=>{
       if(VQSpeech.setDialogueSource)VQSpeech.setDialogueSource(it.id);
       paintSrc();

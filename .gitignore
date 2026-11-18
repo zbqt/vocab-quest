@@ -5,3 +5,7 @@ tools/.sdk-probe.js
 *.log
 .DS_Store
 tools/push-via-api.mjs
+
+# WorkBuddy 本地元数据（发布用的 appId 记录，不进仓库）
+.workbuddy/
+.wbapp_*.genie

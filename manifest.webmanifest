@@ -3,15 +3,38 @@
   "short_name": "Vocab Quest",
   "description": "考试词汇记忆引擎：今天该背几个、哪些词会忘，都算得清",
   "lang": "zh-CN",
+  "dir": "ltr",
   "start_url": "./?sharecode=NHL3SZEC63",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#f6f7fb",
   "theme_color": "#5b6cff",
+  "categories": ["education", "productivity"],
   "icons": [
     { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "开始今天的学习",
+      "short_name": "今天",
+      "url": "./game.html?cat=cet4&act=daily",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "听音辨汉语",
+      "short_name": "听力",
+      "url": "./game.html?cat=cet4&act=listen",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "长对话听写",
+      "short_name": "听写",
+      "url": "./listening.html",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

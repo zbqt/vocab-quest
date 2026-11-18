@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://zbqt.github.io/vocab-quest/sitemap.xml

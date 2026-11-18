@@ -3,181 +3,360 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>词库浏览</title>
+<title>词库浏览 · Vocab Quest</title>
 <meta name="theme-color" content="#5b6cff">
-<meta name="description" content="Vocab Quest 词库：初中/高中/四级/六级全部词条，带音标，点一下就朗读。">
+<meta name="color-scheme" content="light">
+<meta name="description" content="Vocab Quest 词库：初中/高中/四级/六级全部词条，带音标，点一下就朗读。支持按单词或释义搜索。">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<link rel="canonical" href="https://zbqt.github.io/vocab-quest/words.html">
+<link rel="stylesheet" href="./ui.css?v=0.14.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{padding-bottom:env(safe-area-inset-bottom);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;min-height:100dvh}
-.wrap{max-width:860px;width:100%;margin:0 auto;padding:0 20px}
-header{padding:34px 0 18px}
-.back{display:inline-flex;align-items:center;gap:6px;color:#5b6cff;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:16px}
-.back:hover{text-decoration:underline}
-h1{font-size:24px;font-weight:800}
-.sub{color:#6b7280;font-size:13px;margin-top:6px}
-.game-btn{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:10px 18px;border-radius:12px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 6px 16px rgba(91,108,255,.28);transition:transform .15s}
+body{padding-bottom:env(safe-area-inset-bottom);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--vq-bg);color:var(--vq-ink);min-height:100vh;min-height:100dvh;line-height:1.6}
+.app{max-width:860px;width:100%;margin:0 auto;padding:0 20px}
+.top{display:flex;align-items:center;gap:12px;padding:18px 0 14px}
+.back{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:38px;min-height:38px;border-radius:11px;background:#fff;border:1px solid var(--vq-line-strong);color:var(--vq-ink-2);font-size:15px;text-decoration:none;flex:none}
+.back:hover{border-color:#c3ccff;color:var(--vq-primary)}
+.crumb{font-size:11.5px;font-weight:700;color:var(--vq-ink-4);letter-spacing:.4px}
+header{padding:2px 0 16px}
+h1{font-size:25px;font-weight:800;letter-spacing:-.2px;line-height:1.25}
+.sub{color:var(--vq-ink-3);font-size:13px;margin-top:5px}
+.head-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}
+.game-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 19px;border-radius:12px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:14px;font-weight:800;text-decoration:none;box-shadow:0 8px 18px rgba(91,108,255,.26);transition:transform .15s}
 .game-btn:hover{transform:translateY(-2px)}
-.toolbar{position:sticky;top:0;z-index:10;background:rgba(246,247,251,.92);backdrop-filter:blur(8px);padding:10px 0 14px}
-.search{width:100%;padding:12px 16px;border-radius:13px;border:2px solid #e8ecff;background:#fff;font-size:15px;outline:none;font-family:inherit;transition:border-color .15s}
-.search:focus{border-color:#5b6cff}
-.result-tip{font-size:12px;color:#8a91a5;margin-top:8px;display:none}
-.toolbar .search{padding-right:104px}
-.voice-btn{position:absolute;right:0;top:10px;padding:9px 14px;border-radius:11px;border:1px solid #e5e7eb;background:#fff;color:#5b6cff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer}
+.ghost-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 15px;border-radius:12px;background:#fff;border:1px solid var(--vq-line-strong);color:var(--vq-ink-2);font-size:13px;font-weight:700;text-decoration:none}
+.ghost-btn:hover{border-color:#c3ccff;color:var(--vq-primary)}
+
+/* 工具条：搜索框吸顶，滚到哪都能改关键词 */
+.toolbar{position:sticky;top:0;z-index:10;background:rgba(246,247,251,.93);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:10px 0 12px;border-bottom:1px solid rgba(226,230,240,.7)}
+.search-wrap{position:relative;display:flex;align-items:center;gap:8px}
+.search{width:100%;min-height:46px;padding:12px 44px 12px 40px;border-radius:13px;border:2px solid #e4e8fb;background:#fff;font-size:15px;outline:none;font-family:inherit;color:var(--vq-ink);transition:border-color .15s,box-shadow .15s;-webkit-appearance:none}
+.search::placeholder{color:var(--vq-ink-4)}
+.search:focus{border-color:var(--vq-primary);box-shadow:0 0 0 4px rgba(91,108,255,.12)}
+.search::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#a7aec2;font-size:14px;pointer-events:none}
+.clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;border:none;background:#eef0f6;color:#5f6779;font-size:15px;line-height:1;cursor:pointer;display:none;font-family:inherit}
+.clear-btn.show{display:block}
+.clear-btn:hover{background:#e2e6f0;color:var(--vq-ink)}
+.tool-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;flex-wrap:wrap}
+.result-tip{font-size:12px;color:var(--vq-ink-3);font-weight:700}
+.result-tip b{color:var(--vq-ink)}
+.voice-btn{padding:7px 13px;border-radius:999px;border:1px solid var(--vq-line-strong);background:#fff;color:var(--vq-primary);font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap}
 .voice-btn:hover{border-color:#6c7bff;background:#eef1ff}
-.units{padding-bottom:40px}
-details.unit{background:#fff;border:1px solid #eef0f6;border-radius:16px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 8px rgba(31,36,48,.04)}
-details.unit summary{list-style:none;cursor:pointer;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;user-select:none}
+
+.units{padding:14px 0 40px}
+.skeleton{background:#fff;border:1px solid var(--vq-line);border-radius:16px;padding:18px;color:var(--vq-ink-3);font-size:13px;text-align:center}
+details.unit{background:#fff;border:1px solid var(--vq-line);border-radius:16px;margin-bottom:11px;overflow:hidden;box-shadow:var(--vq-shadow-1)}
+details.unit+details.unit{margin-top:0}
+details.unit summary{list-style:none;cursor:pointer;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;user-select:none;min-height:56px}
 details.unit summary::-webkit-details-marker{display:none}
-.u-name{font-size:15px;font-weight:800}
-.u-count{font-size:12px;color:#8a91a5;font-weight:700}
-.u-arrow{color:#c3c8d8;font-size:13px;margin-left:8px;transition:transform .15s}
+details.unit summary:hover{background:#fafbff}
+summary:focus-visible{outline-offset:-3px}
+.u-name{font-size:15px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.u-count{font-size:11.5px;color:var(--vq-ink-3);font-weight:700;white-space:nowrap;background:#f5f6fb;border-radius:999px;padding:3px 9px}
+.u-arrow{color:#b7bdd0;font-size:11px;margin-left:8px;transition:transform .18s;flex:none}
 details[open] .u-arrow{transform:rotate(90deg)}
-.u-head{display:flex;align-items:center;flex:1;gap:8px}
-.word-list{border-top:1px solid #f0f2f8}
-.w-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #f4f5fa}
+.u-head{display:flex;align-items:center;flex:1;gap:9px;min-width:0}
+.word-list{border-top:1px solid #f2f4fa}
+.w-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #f5f6fb}
 .w-row:last-child{border-bottom:none}
-.w-word{font-size:15px;font-weight:700;min-width:130px}
-.w-ph{font-size:12px;color:#8a91a5;letter-spacing:.4px}
-.w-zh{flex:1;font-size:13px;color:#4b5563;min-width:0}
-.w-btn{flex:none;padding:6px 12px;border-radius:999px;background:#f3f5ff;border:1px solid #e5e7eb;font-size:12px;font-weight:700;color:#5b6cff;cursor:pointer;transition:.15s;font-family:inherit}
+.w-row:hover{background:#fbfcff}
+.w-main{display:flex;align-items:baseline;gap:9px;min-width:140px;flex:0 0 auto;flex-wrap:wrap}
+.w-word{font-size:15.5px;font-weight:800;letter-spacing:.1px}
+.w-ph{font-size:11.5px;color:var(--vq-ink-4);letter-spacing:.3px}
+.w-zh{flex:1;font-size:13px;color:var(--vq-ink-2);min-width:0;line-height:1.55}
+.w-btn{flex:none;width:38px;height:38px;border-radius:50%;background:#f3f5ff;border:1px solid #e6e9f8;font-size:14px;color:var(--vq-primary);cursor:pointer;transition:.15s;font-family:inherit;display:grid;place-items:center}
 .w-btn:hover{border-color:#6c7bff;background:#eef1ff}
 .w-btn.playing{background:#eef1ff;border-color:#6c7bff;color:#4653d4}
+mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
 .hidden-row{display:none!important}
-.empty{display:none;text-align:center;padding:60px 0;color:#8a91a5;font-size:14px}
-@media(max-width:600px){
-  header{padding:24px 0 12px}
-  h1{font-size:20px}
-  .w-row{flex-wrap:wrap;padding:12px 16px;gap:6px}
-  .w-word{min-width:0;flex:1 1 auto}
-  .w-ph{order:3;width:100%}
-  .w-zh{flex:1 1 60%}
-  .w-btn{padding:5px 10px}
-}
-.tts-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);max-width:88vw;padding:12px 16px;border-radius:12px;background:rgba(28,32,46,.95);color:#fff;font-size:13px;line-height:1.55;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .28s,transform .28s;z-index:999;pointer-events:none}
+.empty{display:none;text-align:center;padding:54px 20px 60px;color:var(--vq-ink-3);font-size:14px}
+.empty b{display:block;font-size:15px;color:var(--vq-ink);margin-bottom:6px}
+.empty .sug{font-size:12.5px;margin-top:10px;color:var(--vq-ink-4)}
+.page-foot{padding:0 0 40px;text-align:center;font-size:11.5px;color:var(--vq-ink-4);line-height:1.9}
+.page-foot a{color:var(--vq-primary);text-decoration:none;font-weight:700}
+.tts-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);max-width:88vw;padding:12px 16px;border-radius:12px;background:rgba(28,32,46,.95);color:#fff;font-size:13px;line-height:1.55;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .28s,transform .28s;z-index:999;pointer-events:none;text-align:center}
 .tts-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:600px){
+  .app{padding:0 16px}
+  .top{padding:14px 0 10px}
+  h1{font-size:21px}
+  header{padding-bottom:12px}
+  .head-actions .game-btn{flex:1;justify-content:center}
+  details.unit summary{padding:14px 16px}
+  /* 手机上改成两行网格：词形+音标一行、释义一行，发音按钮钉在右侧并跨两行。
+     用 order 折腾 flex-wrap 会让 able 这种短词把按钮挤到第三行。 */
+  .w-row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;gap:1px 10px;padding:11px 14px 11px 16px;align-items:center}
+  .w-main{grid-column:1;grid-row:1;min-width:0;gap:7px}
+  .w-zh{grid-column:1;grid-row:2;font-size:12.5px;line-height:1.5}
+  .w-btn{grid-column:2;grid-row:1/3;width:40px;height:40px;align-self:center}
+  .page-foot{padding-bottom:30px}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <a class="back" href="index.html">← 返回首页</a>
-    <h1 id="pageTitle">词库</h1>
-    <div class="sub" id="pageSub"></div>
-    <a class="game-btn" id="gameBtn" href="game.html?cat=cet4" style="display:none">🎮 进入四级闯关游戏</a>
-  </header>
-  <div class="toolbar">
-    <input class="search" id="search" type="search" placeholder="搜索单词或释义…">
-    <button type="button" class="voice-btn" id="voiceBtn" title="点一下换一种发音，立即试听">🎙 美音</button>
-    <div class="result-tip" id="resultTip"></div>
+<a class="vq-skip" href="#main">跳到主要内容</a>
+<main class="app" id="main">
+  <div class="top">
+    <a class="back" href="index.html" aria-label="返回首页">←</a>
+    <span class="crumb">词库</span>
   </div>
-  <div class="units" id="units"></div>
-  <div class="empty" id="emptyTip">没有匹配的单词，换个关键词试试</div>
-</div>
-<script src="tts.js?v=0.13.0"></script>
-<script src="vocab_cz.js?v=0.13.0"></script>
-<script src="vocab_gz.js?v=0.13.0"></script>
-<script src="vocab.js?v=0.13.0"></script>
-<script src="vocab_c6.js?v=0.13.0"></script>
+  <header>
+    <h1 id="pageTitle">词库</h1>
+    <div class="sub" id="pageSub">正在载入词库…</div>
+    <div class="head-actions">
+      <a class="game-btn" id="gameBtn" href="game.html?cat=cet4" hidden>🎮 开始背这本</a>
+      <a class="ghost-btn" href="index.html">换一套词库</a>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon" aria-hidden="true">🔍</span>
+      <input class="search" id="search" type="search" inputmode="search" enterkeyhint="search" autocomplete="off"
+             placeholder="搜索单词或汉语意思…" aria-label="搜索单词或汉语意思" aria-describedby="resultTip">
+      <button type="button" class="clear-btn" id="clearBtn" aria-label="清空搜索">✕</button>
+    </div>
+    <div class="tool-row">
+      <span class="result-tip" id="resultTip" role="status" aria-live="polite"></span>
+      <button type="button" class="voice-btn" id="voiceBtn" title="点一下换一种发音，立即试听">🎙 美音</button>
+    </div>
+  </div>
+
+  <div class="units" id="units"><div class="skeleton">正在载入词库…</div></div>
+  <div class="empty" id="emptyTip">
+    <b>没找到这个词</b>
+    换成更短的片段试试，比如只打前三个字母。<span class="sug">也可以按汉语搜，比如「牺牲」「能力」。</span>
+  </div>
+  <div class="page-foot">
+    共 <span id="footTotal">—</span> 个词条 · 点 🔊 听发音 · 全部带音标<br>
+    生词直接去 <a id="footGame" href="game.html?cat=cet4">闯关</a>，答错的词会自动进错词区
+  </div>
+</main>
+
+<script src="tts.js?v=0.14.0"></script>
 <script>
-const CATS={
-  cz:{data:VOCAB_CZ,name:"初中英语",desc:"中考大纲核心词汇",game:"game.html?cat=cz"},
-  gz:{data:VOCAB_GZ,name:"高中英语",desc:"高考大纲词汇",game:"game.html?cat=gz"},
-  cet4:{data:VOCAB,name:"英语四级",desc:"CET-4 大纲词汇",game:"game.html?cat=cet4"},
-  c6:{data:VOCAB_C6,name:"英语六级",desc:"CET-6 大纲核心词汇",game:"game.html?cat=c6"}
-};
-// 先取原始参数并规范化，再查表；get() 在没有 cat 参数时返回 null，不能直接 .toLowerCase()
-const catQuery=(new URLSearchParams(location.search).get("cat")||"cet4").toLowerCase();
-const cat=CATS[catQuery]?catQuery:"cet4";
-const CFG=CATS[cat];
-document.title=CFG.name+" · 词库";
-document.getElementById("pageTitle").textContent=CFG.name;
-document.getElementById("pageSub").textContent=CFG.desc+" · 共 "+CFG.data.reduce((s,u)=>s+u.words.length,0)+" 词";
-if(CFG.game){
-  const gb=document.getElementById("gameBtn");
-  gb.style.display="inline-flex";
-  gb.setAttribute("href",CFG.game);
-  gb.textContent="🎮 进入"+CFG.name+"闯关游戏";
-}
+/* ================= 词库页 =================
+   1. 只下载当前这套词库。以前四套全加载（约 540KB），其中 3/4 从头到尾没用上。
+   2. 词行按单元懒渲染。四级 3737 行一次性塞进 DOM，手机上首屏要等。
+   3. 搜索走数据层，不依赖有没有渲染过 —— 所以没展开的单元也能搜到。 */
+(function(){
+  var CATS={
+    cz:{name:"初中英语",desc:"中考大纲核心词汇",file:"vocab_cz.js",get:function(){return typeof VOCAB_CZ!=="undefined"?VOCAB_CZ:null;},game:"game.html?cat=cz"},
+    gz:{name:"高中英语",desc:"高考大纲词汇",file:"vocab_gz.js",get:function(){return typeof VOCAB_GZ!=="undefined"?VOCAB_GZ:null;},game:"game.html?cat=gz"},
+    cet4:{name:"英语四级",desc:"CET-4 大纲词汇",file:"vocab.js",get:function(){return typeof VOCAB!=="undefined"?VOCAB:null;},game:"game.html?cat=cet4"},
+    c6:{name:"英语六级",desc:"CET-6 大纲核心词汇",file:"vocab_c6.js",get:function(){return typeof VOCAB_C6!=="undefined"?VOCAB_C6:null;},game:"game.html?cat=c6"}
+  };
+  /* 词库文件是 `const VOCAB = [...]`：顶层 const 挂在全局词法环境里，
+     不是 window 的属性，所以不能用 window[name] 取。
+     写成惰性 getter，等脚本加载完再解析标识符；typeof 对未声明的名字是安全的。 */
+  // get() 在没有 cat 参数时返回 null，不能直接 toLowerCase()
+  var q=(new URLSearchParams(location.search).get("cat")||"cet4").toLowerCase();
+  var cat=CATS[q]?q:"cet4";
+  var CFG=CATS[cat];
 
-let audioToken=0, speechToastShown=false;
-// 浏览器原生 TTS：cancel/speak 竞态、音色选择、失败判定都交给 tts.js
-function speakWord(en,onDone){
-  const done=onDone||function(){};
-  if(!window.VQSpeech){done(false,"unsupported");return;}
-  VQSpeech.speak(en,{onDone:done});
-}
-function showSpeechToast(msg){
-  const d=document.createElement("div");
-  d.className="tts-toast";
-  d.textContent=msg;
-  document.body.appendChild(d);
-  requestAnimationFrame(()=>d.classList.add("show"));
-  setTimeout(()=>d.classList.remove("show"),3000);
-  setTimeout(()=>{if(d.parentNode)d.parentNode.removeChild(d);},3600);
-}
-function explainSpeechFailure(reason){
-  if(speechToastShown)return;
-  speechToastShown=true;
-  let msg=window.VQSpeech?VQSpeech.reasonText(reason):"这个浏览器不支持朗读";
-  if(window.VQSpeech&&VQSpeech.isWeChat)msg+="　微信内置浏览器容易没声音，点右上角「在浏览器打开」更稳。";
-  showSpeechToast(msg);
-}
-function playWord(en,btn){
-  const my=++audioToken;
-  btn.textContent="⏳";btn.classList.add("playing");
-  speakWord(en,(ok,reason)=>{
-    if(my!==audioToken)return;
-    btn.classList.remove("playing");
-    if(ok===false){btn.textContent="🔇";explainSpeechFailure(reason);}
-    else btn.textContent="🔊";
-  });
-}
+  document.title=CFG.name+"词库 · Vocab Quest";
+  document.getElementById("pageTitle").textContent=CFG.name;
+  document.getElementById("gameBtn").setAttribute("href",CFG.game);
+  document.getElementById("gameBtn").textContent="🎮 开始背"+CFG.name;
+  document.getElementById("footGame").setAttribute("href",CFG.game);
 
-const unitsBox=document.getElementById("units");
-const totalRows=CFG.data.reduce((s,u)=>s+u.words.length,0);
-unitsBox.innerHTML=CFG.data.map((u,i)=>{
-  const rows=u.words.map(w=>{
-    const ph=w[2]?`<span class="w-ph">/${w[2]}/</span>`:"";
-    return `<div class="w-row" data-en="${w[0].toLowerCase()}" data-zh="${w[1]}"><span class="w-word">${w[0]}</span>${ph}<span class="w-zh">${w[1]}</span><button class="w-btn" data-w="${w[0]}">🔊</button></div>`;
-  }).join("");
-  return `<details class="unit"${i===0?" open":""}><summary><span class="u-head"><span class="u-name">${u.name}</span><span class="u-count">${u.words.length} 词</span></span><span class="u-arrow">▶</span></summary><div class="word-list">${rows}</div></details>`;
-}).join("");
-unitsBox.addEventListener("click",e=>{
-  const b=e.target.closest(".w-btn");
-  if(b)playWord(b.getAttribute("data-w"),b);
-});
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
 
-const search=document.getElementById("search");
-const tip=document.getElementById("resultTip");
-const emptyTip=document.getElementById("emptyTip");
-search.addEventListener("input",()=>{
-  const kw=search.value.trim().toLowerCase();
-  const rows=document.querySelectorAll(".w-row");
-  let hits=0;
-  rows.forEach(r=>{
-    const hit=!kw||r.getAttribute("data-en").includes(kw)||r.getAttribute("data-zh").includes(kw);
-    r.classList.toggle("hidden-row",!hit);
-    if(hit)hits++;
+  /* ---------- 发音 ---------- */
+  var audioToken=0,speechToastShown=false;
+  function speakWord(en,onDone){
+    var done=onDone||function(){};
+    if(!window.VQSpeech){done(false,"unsupported");return;}
+    VQSpeech.speak(en,{onDone:done});
+  }
+  function showSpeechToast(msg){
+    var d=document.createElement("div");
+    d.className="tts-toast";d.setAttribute("role","status");d.textContent=msg;
+    document.body.appendChild(d);
+    requestAnimationFrame(function(){d.classList.add("show");});
+    setTimeout(function(){d.classList.remove("show");},3000);
+    setTimeout(function(){if(d.parentNode)d.parentNode.removeChild(d);},3600);
+  }
+  function explainSpeechFailure(reason){
+    if(speechToastShown)return;
+    speechToastShown=true;
+    var msg=window.VQSpeech?VQSpeech.reasonText(reason):"这个浏览器不支持朗读";
+    if(window.VQSpeech&&VQSpeech.isWeChat)msg+="　微信内置浏览器容易没声音，点右上角「在浏览器打开」更稳。";
+    showSpeechToast(msg);
+  }
+  function playWord(en,btn){
+    var my=++audioToken;
+    btn.textContent="⏳";btn.classList.add("playing");
+    speakWord(en,function(ok,reason){
+      if(my!==audioToken)return;
+      btn.classList.remove("playing");
+      if(ok===false){btn.textContent="🔇";explainSpeechFailure(reason);}
+      else btn.textContent="🔊";
+    });
+  }
+
+  /* ---------- 渲染 ---------- */
+  var unitsBox=document.getElementById("units");
+  var search=document.getElementById("search");
+  var clearBtn=document.getElementById("clearBtn");
+  var tip=document.getElementById("resultTip");
+  var emptyTip=document.getElementById("emptyTip");
+  var DATA=null,UNITS_EL=[],TOTAL=0,KW="",rendered={};
+
+  function rowHTML(w,kw){
+    var en=String(w[0]),zh=String(w[1]||""),ph=w[2]?"/"+w[2]+"/":"";
+    var enHtml=kw?markIn(en,kw):esc(en);
+    var zhHtml=kw?markIn(zh,kw):esc(zh);
+    return '<div class="w-row">'+
+        '<div class="w-main"><span class="w-word" lang="en">'+enHtml+'</span>'+
+        (ph?'<span class="w-ph">'+esc(ph)+'</span>':'')+'</div>'+
+        '<span class="w-zh">'+zhHtml+'</span>'+
+        '<button class="w-btn" type="button" data-w="'+esc(en)+'" aria-label="朗读 '+esc(en)+'">🔊</button>'+
+      '</div>';
+  }
+  // 高亮命中片段（大小写不敏感）；用 textContent 片段拼，不把用户输入当 HTML
+  function markIn(text,kw){
+    var i=text.toLowerCase().indexOf(kw);
+    if(i<0)return esc(text);
+    return esc(text.slice(0,i))+"<mark>"+esc(text.slice(i,i+kw.length))+"</mark>"+esc(text.slice(i+kw.length));
+  }
+
+  function renderUnit(idx){
+    var u=DATA[idx],list=UNITS_EL[idx].querySelector(".word-list");
+    if(!list||rendered[idx]&&!KW)return;
+    list.innerHTML=u.words.map(function(w){return rowHTML(w,KW);}).join("");
+    rendered[idx]=true;
+  }
+
+  function build(){
+    TOTAL=DATA.reduce(function(s,u){return s+u.words.length;},0);
+    document.getElementById("pageSub").textContent=CFG.desc+" · 共 "+TOTAL.toLocaleString()+" 词 · "+DATA.length+" 个单元";
+    document.getElementById("footTotal").textContent=TOTAL.toLocaleString();
+    document.getElementById("gameBtn").hidden=false;
+
+    unitsBox.innerHTML=DATA.map(function(u,i){
+      return '<details class="unit"'+(i===0?' open':'')+' data-idx="'+i+'">'+
+        '<summary><span class="u-head"><span class="u-name">'+esc(u.name)+'</span>'+
+        '<span class="u-count">'+u.words.length+' 词</span></span>'+
+        '<span class="u-arrow" aria-hidden="true">▶</span></summary>'+
+        '<div class="word-list"></div></details>';
+    }).join("");
+
+    UNITS_EL=[].slice.call(unitsBox.querySelectorAll("details.unit"));
+    rendered={};
+    // 只渲染第一个单元；其余等展开时再建行
+    if(UNITS_EL[0])renderUnit(0);
+
+    UNITS_EL.forEach(function(d){
+      d.addEventListener("toggle",function(){
+        if(d.open&&!KW)renderUnit(+d.getAttribute("data-idx"));
+      });
+    });
+  }
+
+  /* ---------- 搜索：数据层过滤 ---------- */
+  var MAX_RENDER=400;
+  var openSnapshot=null;   // 搜索前的展开状态，清空后要还原，不能把所有单元都摊开
+  function applySearch(){
+    var kw=search.value.trim().toLowerCase();
+    clearBtn.classList.toggle("show",!!search.value);
+    KW=kw;
+    if(!kw){
+      emptyTip.style.display="none";
+      tip.textContent="";
+      if(openSnapshot){
+        UNITS_EL.forEach(function(d,i){d.open=openSnapshot[i];});
+        openSnapshot=null;
+      }
+      UNITS_EL.forEach(function(d,i){
+        d.style.display="";
+        var u=DATA[i],list=d.querySelector(".word-list");
+        d.querySelector(".u-count").textContent=u.words.length+" 词";
+        if(i===0){if(d.open)renderUnit(0);}
+        else if(d.open&&!rendered[i])renderUnit(i);
+        else if(rendered[i]){ // 搜索时换过 HTML，恢复成全量
+          list.innerHTML=u.words.map(function(w){return rowHTML(w,"");}).join("");
+        }
+        if(!d.open&&!rendered[i])list.innerHTML="";
+      });
+      return;
+    }
+    if(!openSnapshot)openSnapshot=UNITS_EL.map(function(d){return d.open;});
+    var hits=0,shown=0;
+    UNITS_EL.forEach(function(d,i){
+      var u=DATA[i];
+      var m=u.words.filter(function(w){
+        return String(w[0]).toLowerCase().indexOf(kw)>=0||String(w[1]||"").toLowerCase().indexOf(kw)>=0;
+      });
+      if(!m.length){d.style.display="none";d.open=false;rendered[i]=false;return;}
+      hits+=m.length;
+      var slice=m;
+      if(shown>=MAX_RENDER)slice=[];
+      else if(shown+m.length>MAX_RENDER)slice=m.slice(0,MAX_RENDER-shown);
+      shown+=slice.length;
+      if(!slice.length){d.style.display="none";d.open=false;rendered[i]=false;return;}
+      d.style.display="";
+      d.open=true;
+      d.querySelector(".word-list").innerHTML=slice.map(function(w){return rowHTML(w,kw);}).join("");
+      d.querySelector(".u-count").textContent=slice.length===m.length?(m.length+" 词命中"):(slice.length+"/"+m.length+" 条");
+      rendered[i]=false;
+    });
+    tip.innerHTML=hits?("找到 <b>"+hits.toLocaleString()+"</b> 个词"+(shown<hits?"（先显示前 "+shown+" 条）":"")):"";
+    emptyTip.style.display=hits?"none":"block";
+  }
+
+  var timer=null;
+  search.addEventListener("input",function(){
+    if(timer)clearTimeout(timer);
+    timer=setTimeout(applySearch,140);
   });
-  document.querySelectorAll("details.unit").forEach(d=>{
-    const any=d.querySelector(".w-row:not(.hidden-row)");
-    d.style.display=kw&&!any?"none":"";
-    if(kw&&any)d.open=true;
+  search.addEventListener("keydown",function(e){
+    if(e.key==="Escape"){search.value="";applySearch();}
   });
-  if(kw){tip.style.display="block";tip.textContent="找到 "+hits+" 个单词（共 "+totalRows+" 词）";}
-  else tip.style.display="none";
-  emptyTip.style.display=kw&&hits===0?"block":"none";
-});
+  clearBtn.addEventListener("click",function(){
+    search.value="";applySearch();search.focus();
+  });
+
+  unitsBox.addEventListener("click",function(e){
+    var b=e.target.closest(".w-btn");
+    if(b)playWord(b.getAttribute("data-w"),b);
+  });
+
+  /* ---------- 载入当前词库（只一个文件） ----------
+     宿主已经把词库全局量备好时（预加载 / 测试环境）直接用，不重复发一次请求。 */
+  function start(){
+    DATA=CFG.get();
+    if(!DATA||!DATA.length){
+      unitsBox.innerHTML='<div class="skeleton">词库读取失败，刷新一次试试。</div>';
+      return;
+    }
+    build();
+  }
+  var fail=function(){
+    unitsBox.innerHTML='<div class="skeleton">词库没加载成功。检查网络后刷新；离线状态下请先联网打开过一次。</div>';
+  };
+  if(CFG.get()){start();return;}
+  var s=document.createElement("script");
+  s.src=CFG.file+"?v=0.14.0";
+  s.onload=start;
+  s.onerror=fail;
+  document.body.appendChild(s);
+})();
 </script>
 <script>
-/* 发音风格切换：美音 / 英音 / 系统合成，点一下换一种并立刻试听同一个词，好坏由耳朵定 */
+/* 发音风格切换：美音 / 英音 / 系统合成，点一下换一种并立刻试听同一个词 */
 (function(){
   var b=document.getElementById("voiceBtn");
   if(!b||!window.VQSpeech)return;
@@ -186,14 +365,24 @@ search.addEventListener("input",()=>{
   b.onclick=function(){
     VQSpeech.nextVoice();
     paint();
-    speakWord("vocabulary",function(ok,reason){ if(ok===false) explainSpeechFailure(reason); });
+    VQSpeech.speak("vocabulary",{onDone:function(ok,reason){
+      if(ok===false){
+        var msg=VQSpeech.reasonText?VQSpeech.reasonText(reason):"没发声";
+        var d=document.createElement("div");
+        d.className="tts-toast";d.setAttribute("role","status");d.textContent=msg;
+        document.body.appendChild(d);
+        requestAnimationFrame(function(){d.classList.add("show");});
+        setTimeout(function(){d.classList.remove("show");},3000);
+        setTimeout(function(){if(d.parentNode)d.parentNode.removeChild(d);},3600);
+      }
+    }});
   };
 })();
 </script>
 <script>
 /* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */
 if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
-  addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{});});
+  addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
 }
 </script>
 </body>

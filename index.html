@@ -3,136 +3,538 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>单词学习中心</title>
+<title>Vocab Quest 单词闯关 · 四级/六级/高考/中考词汇记忆与发音</title>
 <meta name="theme-color" content="#5b6cff">
-<meta name="description" content="Vocab Quest：把背单词做成能算清账的事。初中/高中/四级/六级四套词库，FSRS 排复习，离线可用。">
+<meta name="color-scheme" content="light">
+<meta name="description" content="四套考纲词库共 10,895 条词条，FSRS-5 按遗忘曲线算出今天该复习哪几个词。听音辨汉语、拼写、语法、长对话听写都在一个页面里，离线可用，不用注册。">
+<link rel="canonical" href="https://zbqt.github.io/vocab-quest/">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<link rel="stylesheet" href="./ui.css?v=0.14.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Vocab Quest">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:url" content="https://zbqt.github.io/vocab-quest/">
 <meta property="og:title" content="Vocab Quest · 单词闯关">
 <meta property="og:description" content="今天该背几个、哪些词会忘，都算得清。四套词库 + FSRS 复习调度，点开就用，离线也能背。">
 <meta property="og:image" content="https://zbqt.github.io/vocab-quest/icons/icon-512.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Vocab Quest 应用图标">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vocab Quest · 单词闯关">
+<meta name="twitter:description" content="四套考纲词库，FSRS 按遗忘曲线排复习；听音辨汉语、拼写、语法、长对话听写，离线可用。">
+<meta name="twitter:image" content="https://zbqt.github.io/vocab-quest/icons/icon-512.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Vocab Quest 单词闯关",
+      "url": "https://zbqt.github.io/vocab-quest/",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Any",
+      "inLanguage": "zh-CN",
+      "description": "四套考纲词库 + FSRS-5 遗忘曲线排复习的英语单词记忆工具，支持听音辨汉语、拼写、语法与长对话听写，可离线使用。",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" },
+      "featureList": [
+        "初中 / 高中 / 四级 / 六级四套词库",
+        "FSRS-5 记忆调度，自动排出今天该复习的词",
+        "听音辨汉语：四选一与手写汉语两种形态",
+        "长对话听写逐句批改",
+        "离线可用，进度存在本机"
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "需要注册账号吗？",
+          "acceptedAnswer": { "@type": "Answer", "text": "不需要。进度默认只存在你这台设备的浏览器里；想多设备接着背，再登录云端备份，不登录也能完整使用。" }
+        },
+        {
+          "@type": "Question",
+          "name": "断网能用吗？",
+          "acceptedAnswer": { "@type": "Answer", "text": "能。第一次打开会把页面和词库缓存到本机（约 900KB），之后断网也能闯关和复习；单词发音在有网时用词典真人录音，断网时用系统自带的语音包。" }
+        },
+        {
+          "@type": "Question",
+          "name": "「今天该学什么」是怎么算出来的？",
+          "acceptedAnswer": { "@type": "Answer", "text": "用 FSRS-5 记忆模型：每个词记录稳定性和难度，按遗忘曲线推算下一次该复习的日期。答错会缩短间隔，连续答对会拉长间隔。" }
+        },
+        {
+          "@type": "Question",
+          "name": "手机上怎么装到桌面？",
+          "acceptedAnswer": { "@type": "Answer", "text": "在浏览器菜单里找「添加到主屏幕」或「安装应用」。Chrome、Edge 叫安装应用，华为/小米/vivo 自带浏览器叫添加到桌面，iPhone 用 Safari 底部分享按钮。菜单里找不到就说明这个浏览器不支持，换系统自带浏览器或 Chrome。" }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f6f7fb;color:#1f2430;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
-.wrap{max-width:880px;width:100%;margin:0 auto;padding:0 20px}
-header{padding:56px 0 28px;text-align:center}
-.logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#6c7bff,#5b6cff);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(91,108,255,.25)}
-h1{font-size:26px;font-weight:800;letter-spacing:1px}
-.sub{color:#6b7280;font-size:14px;margin-top:8px}
-.stats{margin-top:14px;font-size:13px;color:#8a91a5}
-.stats b{color:#5b6cff}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding-bottom:24px}
-.card{display:block;background:#fff;border:1px solid #eef0f6;border-radius:18px;padding:26px 24px;text-decoration:none;color:inherit;box-shadow:0 2px 10px rgba(31,36,48,.04);transition:transform .18s,box-shadow .18s,border-color .18s;position:relative}
-.card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(91,108,255,.14);border-color:#d9ddff}
-.card:active{transform:translateY(-1px)}
-.card-icon{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:14px}
-.card h2{font-size:18px;font-weight:800}
-.card p{color:#6b7280;font-size:13px;margin-top:6px;line-height:1.6}
-.card .meta{margin-top:14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;color:#5b6cff}
-.card .arrow{color:#c3c8d8;font-size:16px;transition:transform .18s}
-.card:hover .arrow{transform:translateX(3px);color:#5b6cff}
-.card .game-link{position:absolute;inset:0}
-.cz .card-icon{background:#e8f6ee}.gz .card-icon{background:#fff4e5}.cet4 .card-icon{background:#eef1ff}.c6 .card-icon{background:#fdeef4}
-footer{margin-top:auto;padding:22px 0 calc(30px + env(safe-area-inset-bottom));text-align:center;color:#a3a9ba;font-size:12px;line-height:1.8}
-footer a{color:#5b6cff;text-decoration:none;font-weight:700}
+body{font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;background:var(--vq-bg);color:var(--vq-ink);min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;line-height:1.6;
+     background-image:radial-gradient(1000px 420px at 50% -160px,rgba(91,108,255,.10),rgba(91,108,255,0) 70%)}
+.wrap{max-width:920px;width:100%;margin:0 auto;padding:0 20px}
+a{color:inherit}
+
+/* ---------- 页头 ---------- */
+.site-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:26px 0 18px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#6c7bff,#4653d4);color:#fff;font-size:21px;display:grid;place-items:center;box-shadow:0 8px 18px rgba(91,108,255,.28);flex:none}
+.brand-name{font-size:16px;font-weight:800;letter-spacing:.2px;line-height:1.25}
+.brand-sub{font-size:11px;color:var(--vq-ink-3)}
+.head-nav{display:flex;gap:4px;flex:none}
+.head-nav a{font-size:13px;font-weight:700;color:var(--vq-ink-2);text-decoration:none;padding:8px 11px;border-radius:10px;min-height:var(--vq-tap);display:inline-flex;align-items:center}
+.head-nav a:hover{background:#fff;color:var(--vq-primary);box-shadow:var(--vq-shadow-1)}
+
+/* ---------- 今日卡 ---------- */
+.hero{background:#fff;border:1px solid #e4e8f8;border-radius:22px;padding:28px 26px 24px;box-shadow:0 10px 30px rgba(64,80,160,.07);position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-70px;top:-70px;width:210px;height:210px;border-radius:50%;background:radial-gradient(circle,#eef1ff,rgba(238,241,255,0) 70%);pointer-events:none}
+.eyebrow{font-size:11px;font-weight:800;color:var(--vq-primary);letter-spacing:.6px;text-transform:uppercase}
+h1{font-size:30px;line-height:1.28;font-weight:800;letter-spacing:-.3px;margin:7px 0 9px}
+.hero p.lead{color:var(--vq-ink-2);font-size:14px;max-width:52ch}
+.status{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 0}
+.pill{display:inline-flex;align-items:baseline;gap:5px;background:#f7f8fc;border:1px solid var(--vq-line);border-radius:999px;padding:6px 13px;font-size:12px;color:var(--vq-ink-3);font-weight:700}
+.pill b{font-size:15px;color:var(--vq-ink);font-weight:800;font-variant-numeric:tabular-nums}
+.pill.hot{background:#fff7ed;border-color:#fed7aa;color:#a2530a}
+.pill.hot b{color:#a2530a}
+.cta-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:20px}
+.cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 26px;border-radius:14px;background:var(--vq-primary);color:#fff;font-size:16px;font-weight:800;text-decoration:none;box-shadow:0 10px 22px rgba(91,108,255,.28);transition:transform .16s,background .16s}
+.cta:hover{background:var(--vq-primary-d);transform:translateY(-2px)}
+.cta:active{transform:translateY(0)}
+.cta-note{font-size:12px;color:var(--vq-ink-3)}
+.cta-note b{color:var(--vq-ink-2)}
+
+/* ---------- 区块通用 ---------- */
+section{margin-top:34px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:13px}
+h2{font-size:18px;font-weight:800;letter-spacing:-.2px}
+.sec-note{font-size:12px;color:var(--vq-ink-3)}
+
+/* ---------- 阶段卡 ---------- */
+.stages{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.stage{position:relative;background:#fff;border:1px solid var(--vq-line);border-radius:18px;padding:20px 20px 16px;box-shadow:var(--vq-shadow-1);transition:transform .18s,box-shadow .18s,border-color .18s;display:flex;flex-direction:column}
+.stage:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(91,108,255,.13);border-color:#d6ddff}
+.stage:active{transform:translateY(-1px)}
+.stage-top{display:flex;align-items:center;gap:10px}
+.stage-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex:none}
+.stage h3{font-size:16px;font-weight:800;line-height:1.3}
+.stage .en{font-size:10px;color:var(--vq-ink-4);font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+.stage-desc{font-size:12.5px;color:var(--vq-ink-3);margin-top:11px;min-height:2.6em}
+.stage-nums{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--vq-ink-3);font-weight:700;margin-top:4px}
+.stage-nums .due{color:#a2530a}
+.bar{height:6px;background:#eff1f8;border-radius:999px;overflow:hidden;margin:13px 0 12px}
+.bar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#8b97ff,#5b6cff);transition:width .5s ease}
+.stage-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
+.stage-go{font-size:13px;font-weight:800;color:var(--vq-primary);text-decoration:none;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 2px}
+.stage-link{font-size:11.5px;color:var(--vq-ink-3);text-decoration:none;padding:8px 6px;border-radius:8px;position:relative;z-index:2}
+.stage-link:hover{color:var(--vq-primary);background:#f5f6ff}
+.stretch{position:absolute;inset:0;z-index:1;border-radius:18px}
+.stretch:focus-visible{outline-offset:4px}
+
+/* ---------- 专项训练 ---------- */
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tool{position:relative;background:#fff;border:1px solid var(--vq-line);border-radius:16px;padding:16px 16px 14px;text-decoration:none;color:inherit;box-shadow:var(--vq-shadow-1);transition:transform .16s,box-shadow .16s,border-color .16s;display:flex;flex-direction:column;gap:4px;min-height:112px}
+.tool:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(91,108,255,.12);border-color:#d6ddff}
+.tool-ico{font-size:19px;flex:none}
+/* 只作用于文字块，不然 .tool span 会把图标也染灰缩小 */
+.tool .txt{display:flex;flex-direction:column;gap:3px;min-width:0}
+.tool .txt b{font-size:14px;font-weight:800;line-height:1.35}
+.tool .txt .desc{font-size:11.5px;color:var(--vq-ink-3);line-height:1.55}
+.tool.listen{background:linear-gradient(150deg,#f7f5ff,#fff)}
+.tool.dict{background:linear-gradient(150deg,#fff8ee,#fff)}
+.tool.rescue{background:linear-gradient(150deg,#fff5f5,#fff)}
+
+/* ---------- 怎么用 ---------- */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;counter-reset:s}
+.step{background:#fff;border:1px solid var(--vq-line);border-radius:16px;padding:16px;box-shadow:var(--vq-shadow-1)}
+.step::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:24px;height:24px;border-radius:8px;background:var(--vq-primary-soft);color:var(--vq-primary);font-size:12px;font-weight:800;margin-bottom:9px}
+.step b{display:block;font-size:13.5px;margin-bottom:3px}
+.step p{font-size:12px;color:var(--vq-ink-3);line-height:1.65}
+
+/* ---------- FAQ ---------- */
+.faq{background:#fff;border:1px solid var(--vq-line);border-radius:16px;overflow:hidden;box-shadow:var(--vq-shadow-1)}
+.faq details{border-bottom:1px solid #f2f4fa}
+.faq details:last-child{border-bottom:none}
+.faq summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;font-size:13.5px;font-weight:800;min-height:var(--vq-tap)}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:hover{background:#fafbff}
+.faq summary .chev{color:#a7aec2;font-size:12px;transition:transform .18s;flex:none}
+.faq details[open] summary .chev{transform:rotate(180deg)}
+.faq .ans{padding:0 18px 16px;font-size:12.5px;color:var(--vq-ink-2);line-height:1.85;max-width:62ch}
+
+/* ---------- 页脚 ---------- */
+footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
+.foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:22px;padding:22px 0 18px;border-top:1px solid #e6e9f3}
+.foot-col h4{font-size:11px;font-weight:800;color:var(--vq-ink-4);letter-spacing:.7px;text-transform:uppercase;margin-bottom:9px}
+.foot-col a,.foot-col p{display:block;font-size:12.5px;color:var(--vq-ink-3);text-decoration:none;line-height:1.9}
+.foot-col a:hover{color:var(--vq-primary);text-decoration:underline}
+.foot-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:14px;border-top:1px solid #eef0f6;font-size:11.5px;color:var(--vq-ink-4)}
+.btn-ghost{font-family:inherit;font-size:12px;font-weight:700;color:var(--vq-ink-2);background:#fff;border:1px solid var(--vq-line-strong);border-radius:10px;padding:9px 13px;min-height:38px;cursor:pointer;transition:.15s}
+.btn-ghost:hover{border-color:#c3ccff;color:var(--vq-primary);background:#f8f9ff}
+#helpBox[hidden]{display:none}
+.help-box{margin-top:14px;background:#fff;border:1px solid var(--vq-line-strong);border-radius:14px;padding:16px 18px;color:var(--vq-ink-2);font-size:12.5px;line-height:1.9;text-align:left;box-shadow:var(--vq-shadow-1)}
+.help-box b{color:var(--vq-ink)}
+.noscript{background:#fff7ed;border:1px solid #fed7aa;color:#8a4b09;border-radius:12px;padding:12px 16px;font-size:13px;margin-top:16px}
+
+@media(max-width:760px){
+  .tools{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr}
+  .foot-grid{grid-template-columns:1fr 1fr}
+  .tool{min-height:0;flex-direction:row;align-items:center;gap:13px;padding:14px 15px}
+  .tool-ico{font-size:22px;width:38px;height:38px;border-radius:11px;background:#fff;display:grid;place-items:center;box-shadow:0 1px 4px rgba(31,36,48,.06)}
+}
 @media(max-width:600px){
-  header{padding:36px 0 20px}
-  h1{font-size:22px}
-  .grid{grid-template-columns:1fr;gap:12px}
-  .card{padding:20px 18px}
+  .wrap{padding:0 16px}
+  .site-head{padding:18px 0 12px}
+  .head-nav{display:none}
+  h1{font-size:23px}
+  .hero{padding:22px 18px 20px;border-radius:18px}
+  .stages{grid-template-columns:1fr;gap:11px}
+  .stage{padding:17px 17px 13px}
+  .stage-desc{min-height:0}
+  .cta{width:100%}
+  .cta-note{width:100%;text-align:center}
+  section{margin-top:26px}
+  .foot-grid{grid-template-columns:1fr 1fr;gap:14px 18px}
+  .foot-col:last-child{grid-column:1/-1}
+  .foot-bottom{justify-content:center;text-align:center;line-height:1.8}
+}
+@media(max-width:380px){
+  h1{font-size:21px}
+  .status{gap:6px}
+  .pill{padding:5px 10px;font-size:11px}
 }
 </style>
 </head>
 <body>
+<a class="vq-skip" href="#main">跳到主要内容</a>
 <div class="wrap">
-  <header>
-    <div class="logo">📖</div>
-    <h1>单词学习中心</h1>
-    <div class="sub">选择一个阶段，开始你的词汇之旅</div>
-    <div class="stats">共收录 <b id="totalWords">—</b> 条词条 · 去重后 <b id="uniqWords">—</b> 个单词 · 全部带音标，点一下就能读</div>
-  </header>
-  <div class="grid">
-    <a class="card cz" href="words.html?cat=cz">
-      <div class="card-icon">🌱</div>
-      <h2>初中英语</h2>
-      <p>中考大纲核心词汇，打好基础，配套闯关游戏与发音练习。</p>
-      <div class="meta"><span id="cnt-cz">— 词</span><span class="arrow">→</span></div>
-    </a>
-    <a class="card gz" href="words.html?cat=gz">
-      <div class="card-icon">🌤️</div>
-      <h2>高中英语</h2>
-      <p>高考大纲词汇，稳步进阶，配套闯关游戏与发音练习。</p>
-      <div class="meta"><span id="cnt-gz">— 词</span><span class="arrow">→</span></div>
-    </a>
-    <a class="card cet4" href="words.html?cat=cet4">
-      <div class="card-icon">⛰️</div>
-      <h2>英语四级</h2>
-      <p>CET-4 大纲词汇，配套闯关游戏：词义匹配、拼写、语法与错词复习。</p>
-      <div class="meta"><span id="cnt-cet4">— 词</span><span class="arrow">→</span></div>
-    </a>
-    <a class="card c6" href="words.html?cat=c6">
-      <div class="card-icon">🚀</div>
-      <h2>英语六级</h2>
-      <p>CET-6 大纲核心词汇，冲刺提升，配套闯关游戏与发音练习。</p>
-      <div class="meta"><span id="cnt-c6">— 词</span><span class="arrow">→</span></div>
-    </a>
-  </div>
-  <a class="card" href="listening.html" style="display:flex;align-items:center;gap:14px;padding:18px 20px;margin-bottom:24px">
-    <div class="card-icon" style="background:#fff7ed;margin-bottom:0">🎧</div>
-    <div style="flex:1;min-width:0">
-      <h2>长对话听写</h2>
-      <p>听一段英语对话，一句一句写下来，提交后当场标出哪个词没听出来。</p>
+
+  <header class="site-head">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">📖</div>
+      <div>
+        <div class="brand-name">Vocab Quest</div>
+        <div class="brand-sub">单词闯关 · 按遗忘曲线排复习</div>
+      </div>
     </div>
-    <span class="arrow">→</span>
-  </a>
-  <div id="cloudMount"></div>
+    <nav class="head-nav" aria-label="快速入口">
+      <a href="game.html?cat=cet4">闯关</a>
+      <a href="words.html?cat=cet4">词表</a>
+      <a href="listening.html">听写</a>
+    </nav>
+  </header>
+
+  <main id="main">
+
+    <div class="hero">
+      <div class="eyebrow" id="heroEyebrow">今天</div>
+      <h1 id="heroTitle">今天该背哪些词，算好了。</h1>
+      <p class="lead" id="heroLead">四套考纲词库、<b id="totalWords">—</b> 条词条全部带音标。FSRS-5 按每个词的遗忘速度排出今天的复习，答错缩短间隔、连对拉长间隔。</p>
+      <div class="status" id="statusRow" hidden>
+        <span class="pill hot" id="pillDue" hidden>待复习 <b>0</b> 词</span>
+        <span class="pill">已学 <b id="pillLearned">0</b> 词</span>
+        <span class="pill">连续 <b id="pillStreak">0</b> 天</span>
+      </div>
+      <div class="cta-row">
+        <a class="cta" id="mainCta" href="game.html?cat=cet4">开始今天的学习 →</a>
+        <span class="cta-note" id="ctaNote">第一次来？先做 3 分钟定级测试，认识的词不再重复学。</span>
+      </div>
+      <noscript><p class="noscript">这个页面需要开启 JavaScript 才能计算复习计划和播放发音。</p></noscript>
+    </div>
+
+    <section aria-labelledby="secStages">
+      <div class="sec-head">
+        <h2 id="secStages">选一套词库</h2>
+        <span class="sec-note">点卡片直接开背，词表在卡片右下角</span>
+      </div>
+      <div class="stages" id="stageGrid">
+        <div class="stage" data-cat="cz">
+          <div class="stage-top">
+            <span class="stage-ico" style="background:#e8f6ee" aria-hidden="true">🌱</span>
+            <div><h3>初中英语</h3><span class="en">Junior High</span></div>
+          </div>
+          <p class="stage-desc">中考大纲核心词，从最常用的词开始，把发音和词义一次绑住。</p>
+          <div class="stage-nums"><span data-num="total">— 词</span><span data-num="units">— 单元</span><span class="due" data-num="due" hidden></span></div>
+          <div class="bar" aria-hidden="true"><i data-num="bar"></i></div>
+          <div class="stage-foot">
+            <a class="stage-go" data-num="go" href="game.html?cat=cz">开始学习 <span aria-hidden="true">→</span></a>
+            <a class="stage-link" href="words.html?cat=cz">看词表</a>
+          </div>
+          <a class="stretch" data-num="cover" href="game.html?cat=cz"><span class="vq-sr-only">开始学习初中英语</span></a>
+        </div>
+        <div class="stage" data-cat="gz">
+          <div class="stage-top">
+            <span class="stage-ico" style="background:#fff4e5" aria-hidden="true">🌤️</span>
+            <div><h3>高中英语</h3><span class="en">Senior High</span></div>
+          </div>
+          <p class="stage-desc">高考大纲词汇，覆盖阅读和写作里最常挡路的那些词。</p>
+          <div class="stage-nums"><span data-num="total">— 词</span><span data-num="units">— 单元</span><span class="due" data-num="due" hidden></span></div>
+          <div class="bar" aria-hidden="true"><i data-num="bar"></i></div>
+          <div class="stage-foot">
+            <a class="stage-go" data-num="go" href="game.html?cat=gz">开始学习 <span aria-hidden="true">→</span></a>
+            <a class="stage-link" href="words.html?cat=gz">看词表</a>
+          </div>
+          <a class="stretch" data-num="cover" href="game.html?cat=gz"><span class="vq-sr-only">开始学习高中英语</span></a>
+        </div>
+        <div class="stage" data-cat="cet4">
+          <div class="stage-top">
+            <span class="stage-ico" style="background:#eef1ff" aria-hidden="true">⛰️</span>
+            <div><h3>英语四级</h3><span class="en">CET-4</span></div>
+          </div>
+          <p class="stage-desc">CET-4 大纲词汇。词义匹配、拼写、听力、语法四种题型轮着考。</p>
+          <div class="stage-nums"><span data-num="total">— 词</span><span data-num="units">— 单元</span><span class="due" data-num="due" hidden></span></div>
+          <div class="bar" aria-hidden="true"><i data-num="bar"></i></div>
+          <div class="stage-foot">
+            <a class="stage-go" data-num="go" href="game.html?cat=cet4">开始学习 <span aria-hidden="true">→</span></a>
+            <a class="stage-link" href="words.html?cat=cet4">看词表</a>
+          </div>
+          <a class="stretch" data-num="cover" href="game.html?cat=cet4"><span class="vq-sr-only">开始学习英语四级</span></a>
+        </div>
+        <div class="stage" data-cat="c6">
+          <div class="stage-top">
+            <span class="stage-ico" style="background:#fdeef4" aria-hidden="true">🚀</span>
+            <div><h3>英语六级</h3><span class="en">CET-6</span></div>
+          </div>
+          <p class="stage-desc">CET-6 大纲核心词，抽象词多，靠听音和例句把意思钉住。</p>
+          <div class="stage-nums"><span data-num="total">— 词</span><span data-num="units">— 单元</span><span class="due" data-num="due" hidden></span></div>
+          <div class="bar" aria-hidden="true"><i data-num="bar"></i></div>
+          <div class="stage-foot">
+            <a class="stage-go" data-num="go" href="game.html?cat=c6">开始学习 <span aria-hidden="true">→</span></a>
+            <a class="stage-link" href="words.html?cat=c6">看词表</a>
+          </div>
+          <a class="stretch" data-num="cover" href="game.html?cat=c6"><span class="vq-sr-only">开始学习英语六级</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="secTools">
+      <div class="sec-head">
+        <h2 id="secTools">专项训练</h2>
+        <span class="sec-note">不按单元走，专挑一个能力练</span>
+      </div>
+      <div class="tools">
+        <a class="tool listen" id="toolListen" href="game.html?cat=cet4&amp;act=listen">
+          <span class="tool-ico" aria-hidden="true">🎧</span>
+          <span class="txt"><b>听音辨汉语</b><span class="desc">只放声音，选意思或直接写出来 —— 练「听到就懂」这条直路</span></span>
+        </a>
+        <a class="tool dict" href="listening.html">
+          <span class="tool-ico" aria-hidden="true">🎤</span>
+          <span class="txt"><b>长对话听写</b><span class="desc">听一句写一句，当场标出哪个词没听出来</span></span>
+        </a>
+        <a class="tool rescue" id="toolRescue" href="game.html?cat=cet4&amp;act=rescue">
+          <span class="tool-ico" aria-hidden="true">🩹</span>
+          <span class="txt"><b>错词重练</b><span class="desc">答错过的词趁热再来一遍，连对两次才放它走</span></span>
+        </a>
+      </div>
+    </section>
+
+    <section aria-labelledby="secHow">
+      <div class="sec-head"><h2 id="secHow">怎么用</h2></div>
+      <div class="steps">
+        <div class="step"><b>先测一下，别从 A 背起</b><p>四选一 42 道，3 分钟估出你现在的水平，认识的词直接跳过，把时间花在真不会的词上。</p></div>
+        <div class="step"><b>每天一关，12 个词</b><p>词义、拼写、听力、语法轮着来，一关覆盖本关全部单词，答对 8 题通关。</p></div>
+        <div class="step"><b>到期回来复习</b><p>首页会告诉你今天哪几个词该复习。答错缩短间隔，连续答对拉长，不需要自己定计划。</p></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="secFaq">
+      <div class="sec-head"><h2 id="secFaq">常见问题</h2></div>
+      <div class="faq">
+        <details>
+          <summary>需要注册账号吗？<span class="chev" aria-hidden="true">▾</span></summary>
+          <div class="ans">不需要。进度默认只存在你这台设备的浏览器里；想换设备接着背，再登录云端备份。不登录也能完整使用。</div>
+        </details>
+        <details>
+          <summary>断网能用吗？<span class="chev" aria-hidden="true">▾</span></summary>
+          <div class="ans">能。第一次打开会把页面和词库缓存到本机（约 900KB），之后断网也能闯关、复习。发音在有网时用词典真人录音，断网时退回系统自带的语音包。</div>
+        </details>
+        <details>
+          <summary>「今天该学什么」是怎么算的？<span class="chev" aria-hidden="true">▾</span></summary>
+          <div class="ans">用 FSRS-5 记忆模型：每个词记录稳定性和难度，按遗忘曲线推算下一次该复习的日期。答错会把间隔压短，连续答对会把间隔拉长 —— 它不知道你明天有没有空，但知道这个词大概什么时候会忘。</div>
+        </details>
+        <details>
+          <summary>手机怎么装到桌面？<span class="chev" aria-hidden="true">▾</span></summary>
+          <div class="ans">浏览器菜单里找「添加到主屏幕」或「安装应用」。Chrome / Edge 叫<b>安装应用</b>，华为 / 小米 / vivo 自带浏览器叫<b>添加到桌面</b>，iPhone 用 Safari 底部分享按钮。菜单里一个都没有，就是这浏览器不支持，换系统自带浏览器或 Chrome。</div>
+        </details>
+        <details>
+          <summary>进度会不会丢？<span class="chev" aria-hidden="true">▾</span></summary>
+          <div class="ans">进度写在浏览器本地，清理浏览器数据会一起清掉。闯关页底部有「导出存档」，导出一份 JSON 放着，换设备或换浏览器时用「导入存档」接上。</div>
+        </details>
+      </div>
+    </section>
+
+    <div id="cloudMount"></div>
+  </main>
+
   <footer>
-    四级闯关直达：<a href="game.html?cat=cet4">进入四级闯关游戏 →</a><br>
-    各阶段闯关支持「📖 顺序闯关 / 🎲 乱序闯关」双模式 · 单击发音 · 完全离线可用<br>
-    数据来源：有道词典开源词书 · 发音优先用系统语音，系统不支持时自动改用在线发音 · 每关覆盖本关全部单词
-    <div style="margin-top:10px"><button type="button" id="helpLink" class="btn btn-ghost" style="font-size:12px;padding:6px 12px">🔧 没声音 / 装不到桌面？点这里</button></div>
-    <div id="helpBox" style="display:none;text-align:left;margin:12px auto 0;max-width:520px;background:#fff;border:1px solid #e6e9f2;border-radius:12px;padding:14px 16px;color:#4a5168;font-size:13px;line-height:1.9"></div>
+    <div class="foot-grid">
+      <div class="foot-col">
+        <h4>开始学习</h4>
+        <a href="game.html?cat=cet4">四级闯关</a>
+        <a href="words.html?cat=cet4">四级词表</a>
+        <a href="listening.html">长对话听写</a>
+      </div>
+      <div class="foot-col">
+        <h4>数据与发音</h4>
+        <p>词库：有道词典开源词书</p>
+        <p>发音：词典真人录音 · 系统语音兜底</p>
+        <p>进度：只存在本机，登录后才上云</p>
+      </div>
+      <div class="foot-col">
+        <h4>遇到问题</h4>
+        <p><button type="button" id="helpLink" class="btn-ghost" aria-expanded="false" aria-controls="helpBox">🔧 没声音 / 装不到桌面</button></p>
+        <p>完全离线可用 · 无需注册</p>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Vocab Quest · 词库 <b id="uniqWords">—</b> 个去重单词，全部带音标</span>
+      <span>用 FSRS-5 排复习</span>
+    </div>
+    <div class="help-box" id="helpBox" hidden></div>
   </footer>
 </div>
-<script src="stats.js?v=0.13.0"></script>
-<script src="tts.js?v=0.13.0"></script>
-<script src="cloud-sync.js?v=0.13.0"></script>
+
+<script src="stats.js?v=0.14.0"></script>
+<script src="tts.js?v=0.14.0"></script>
+<script src="cloud-sync.js?v=0.14.0"></script>
 <script>
-/* 首页只读统计文件（0.4KB），不再加载 700KB 词库；数字由 npm run gen:stats 生成 */
+/* ============ 1. 词库规模：只读统计文件（0.4KB），不下载 700KB 词库 ============ */
 (function(){
-  if(typeof VQ_STATS==="undefined")return;   // 统计文件缺失时保留破折号，不报错
-  ["cz","gz","cet4","c6"].forEach(k=>{
-    const el=document.getElementById("cnt-"+k);
-    if(el&&VQ_STATS.books[k])el.textContent=VQ_STATS.books[k].toLocaleString()+" 条";
+  if(typeof VQ_STATS==="undefined")return;
+  var S=VQ_STATS;
+  if(S.total)document.getElementById("totalWords").textContent=S.total.toLocaleString();
+  if(S.uniq)document.getElementById("uniqWords").textContent=S.uniq.toLocaleString();
+  document.querySelectorAll("#stageGrid .stage").forEach(function(card){
+    var cat=card.getAttribute("data-cat");
+    var n=(S.books&&S.books[cat])||0, u=(S.units&&S.units[cat])||0;
+    var t=card.querySelector('[data-num="total"]'), un=card.querySelector('[data-num="units"]');
+    if(t&&n)t.textContent=n.toLocaleString()+" 词";
+    if(un&&u)un.textContent=u+" 单元";
+    card.setAttribute("data-total",n);
   });
-  document.getElementById("totalWords").textContent=VQ_STATS.total.toLocaleString();
-  document.getElementById("uniqWords").textContent=VQ_STATS.uniq.toLocaleString();
 })();
 </script>
 <script>
-/* 云端存档：首页只做「登录 / 看云端有几本词库」，具体同步在各自词库页面里 */
+/* ============ 2. 本机进度：首页从存档里读计数，不加载引擎、不碰存档结构 ============
+   只读三个标量（已学词数 / 待复习 / 连续天数）和 lv，算不出「今日计划」就不假装算得出。 */
+(function(){
+  var KEYS={cz:"vocabQuest_cz",gz:"vocabQuest_gz",cet4:"vocabQuestV2",c6:"vocabQuest_c6"};
+  var NAMES={cz:"初中英语",gz:"高中英语",cet4:"英语四级",c6:"英语六级"};
+
+  function dn(s){var p=String(s||"").split("-");if(p.length!==3)return 0;return (+p[0])*10000+(+p[1])*100+(+p[2]);}
+  function todayNum(){var d=new Date();return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();}
+  function prevNum(n){var y=Math.floor(n/10000),m=Math.floor(n%10000/100),d=n%100;var dt=new Date(y,m-1,d);dt.setDate(dt.getDate()-1);return dt.getFullYear()*10000+(dt.getMonth()+1)*100+dt.getDate();}
+  function read(k){try{var r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch(e){return null;}}
+  function streak(days){
+    if(!days||!days.length)return 0;
+    var set={};days.forEach(function(x){set[dn(x)]=1;});
+    var cur=todayNum();
+    if(!set[cur])cur=prevNum(cur);
+    var n=0;
+    while(set[cur]&&n<400){n++;cur=prevNum(cur);}
+    return n;
+  }
+
+  var per={},sumDue=0,sumLearned=0,bestStreak=0;
+  Object.keys(KEYS).forEach(function(cat){
+    var raw=read(KEYS[cat]);
+    var words=(raw&&raw.words)||{};
+    var list=Object.keys(words);
+    var t=todayNum(),due=0;
+    list.forEach(function(w){
+      var at=words[w]&&words[w].dueAt;
+      if(at&&dn(at)<=t)due++;
+    });
+    var learned=list.filter(function(w){var x=words[w];return x&&((x.seen||0)>0||(x.reps||0)>0);}).length;
+    var st=streak(raw&&raw.days);
+    per[cat]={due:due,learned:learned,lv:(raw&&raw.lv)|0,passed:(raw&&raw.passedCount)|0,streak:st,started:learned>0||!!(raw&&raw.passedCount)};
+    sumDue+=due;sumLearned+=learned;
+    if(st>bestStreak)bestStreak=st;
+
+    // 卡片：进度条 + 待复习角标
+    var card=document.querySelector('.stage[data-cat="'+cat+'"]');
+    if(!card)return;
+    var total=+card.getAttribute("data-total")||0;
+    var bar=card.querySelector('[data-num="bar"]');
+    // 学过就至少留 1.5% 的宽度：3,737 词背了 50 个是 1.3%，四舍五入成 0 会让人以为没记上
+    if(bar&&total)bar.style.width=(learned>0?Math.max(1.5,learned/total*100):0)+"%";
+    var dueEl=card.querySelector('[data-num="due"]');
+    if(dueEl&&due>0){dueEl.hidden=false;dueEl.textContent="待复习 "+due;}
+    card.setAttribute("data-learned",learned);
+    card.setAttribute("data-due",due);
+  });
+
+  // 主按钮：有到期词就去到期最多的那本；否则去学得最多的那本；都没有就四级
+  var pick="cet4",best=-1;
+  if(sumDue>0){
+    Object.keys(per).forEach(function(c){if(per[c].due>best){best=per[c].due;pick=c;}});
+  }else{
+    best=-1;
+    Object.keys(per).forEach(function(c){if(per[c].learned>best){best=per[c].learned;pick=c;}});
+  }
+
+  var cta=document.getElementById("mainCta");
+  var note=document.getElementById("ctaNote");
+  var title=document.getElementById("heroTitle");
+  var eyebrow=document.getElementById("heroEyebrow");
+  if(cta)cta.setAttribute("href","game.html?cat="+pick+"&act=daily");
+  if(cta)cta.textContent=(sumLearned>0?"继续今天的学习":"开始今天的学习")+" →";
+  if(note&&sumLearned>0)note.textContent="攒着 "+sumDue+" 个到期词，按遗忘曲线排好了先后。";
+
+  // 专项训练跟着当前阶段走，别把四级用户扔到初中词库
+  ["toolListen","toolRescue"].forEach(function(id){
+    var a=document.getElementById(id);
+    if(!a)return;
+    var act=a.getAttribute("href").indexOf("act=listen")>0?"listen":"rescue";
+    a.setAttribute("href","game.html?cat="+pick+"&act="+act);
+  });
+
+  var row=document.getElementById("statusRow");
+  if(row&&(sumLearned>0||sumDue>0)){
+    row.hidden=false;
+    var dueMod=document.getElementById("pillDue");
+    if(dueMod){
+      if(sumDue>0){dueMod.hidden=false;dueMod.querySelector("b").textContent=sumDue;}
+      else dueMod.hidden=true;
+    }
+    document.getElementById("pillLearned").textContent=sumLearned;
+    document.getElementById("pillStreak").textContent=bestStreak;
+    if(title&&sumDue>0)title.textContent="今天有 "+sumDue+" 个词该复习了。";
+    if(title&&sumDue===0&&sumLearned>0)title.textContent="没有到期的词，可以往前学一点。";
+    if(eyebrow)eyebrow.textContent="今天 · "+NAMES[pick];
+  }else if(eyebrow){
+    eyebrow.textContent="今天 · 还没有进度";
+  }
+})();
+</script>
+<script>
+/* ============ 3. 云端存档：首页只负责登录与查看，同步在各词库页里 ============ */
 if(window.VQCloud){
   VQCloud.mount(document.getElementById("cloudMount"),{});
 }
 </script>
 <script>
-/* 自助诊断：手机端往往说不清"我是哪个浏览器、为什么不响"，这里把事实摆出来，截图就能定位 */
+/* ============ 4. 自助诊断：手机端说不清环境，就把事实摆出来，截图即可定位 ============ */
 (function(){
   var btn=document.getElementById("helpLink"),box=document.getElementById("helpBox");
   if(!btn||!box)return;
   function line(k,v){return "<div style=\"display:flex;gap:10px;padding:2px 0\"><b style=\"flex:0 0 84px;color:#2c3448\">"+k+"</b><span style=\"flex:1;word-break:break-all\">"+v+"</span></div>";}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 
   btn.onclick=function(){
-    if(box.style.display!=="none"){box.style.display="none";btn.textContent="🔧 没声音 / 装不到桌面？点这里";return;}
+    if(!box.hidden){box.hidden=true;btn.setAttribute("aria-expanded","false");btn.textContent="🔧 没声音 / 装不到桌面";return;}
     var d={};try{d=(window.VQSpeech&&VQSpeech.diagnose())||{};}catch(e){}
     var standalone=false;
     try{standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;}catch(e){}
@@ -141,7 +543,7 @@ if(window.VQCloud){
     var tips=[];
 
     if(d.pref!=="native"){
-      tips.push("当前用的是<b>词典真人录音</b>（"+(d.prefName||"美音")+"），比手机自带的合成音自然得多；断网时会自动退回系统合成。觉得不好听可以点下面的按钮换一种。");
+      tips.push("当前用的是<b>词典真人录音</b>（"+(d.prefName||"美音")+"），比手机自带的合成音自然得多；断网时会自动退回系统合成。");
     }
     if(!d.nativeSupported){
       tips.push("这个浏览器<b>没有系统朗读能力</b>，所以断网时没声音。想离线也能读，换 Chrome / Edge / Safari。");
@@ -149,19 +551,19 @@ if(window.VQCloud){
       tips.push("系统里有朗读接口，但<b>一个英文语音包都没装</b>——不影响在线录音，只是断网时读不了。");
     }
     if(!standalone){
-      tips.push("<b>装到桌面</b>各家浏览器叫法不同，在菜单里找这几个字：<br>· Chrome / Edge：<b>安装应用</b> 或 添加到主屏幕<br>· 华为 / 小米 / vivo / OPPO 自带浏览器：<b>添加到桌面</b><br>· QQ / 夸克：菜单 → <b>添加到桌面</b><br>· iPhone Safari：底部分享 ⬆️ → <b>添加到主屏幕</b><br>如果菜单里一个都没有，说明这个浏览器不支持，换系统自带浏览器或 Chrome。");
+      tips.push("<b>装到桌面</b>各家浏览器叫法不同，在菜单里找这几个字：<br>· Chrome / Edge：<b>安装应用</b> 或 添加到主屏幕<br>· 华为 / 小米 / vivo / OPPO 自带浏览器：<b>添加到桌面</b><br>· QQ / 夸克：菜单 → <b>添加到桌面</b><br>· iPhone Safari：底部分享 ⬆️ → <b>添加到主屏幕</b><br>如果菜单里一个都没有，说明这个浏览器不支持。");
     }
     if(/MicroMessenger/i.test(ua))tips.push("现在是<b>微信内置浏览器</b>，语音和装桌面都受限：点右上角「···」→「在浏览器打开」。");
 
     box.innerHTML=
       "<div style=\"font-weight:800;color:#2c3448;margin-bottom:8px\">当前环境</div>"+
-      line("浏览器",ua)+
-      line("发音风格",(d.prefName||"美音")+(d.pref==="native"?"（系统合成 · 可离线）":"（词典真人录音 · 需联网）"))+
-      line("系统合成",d.nativeSupported?(en.length?en.length+" 个英文音色":"有接口，但没装英文语音包"):"该浏览器不支持")+
+      line("浏览器",esc(ua))+
+      line("发音风格",esc((d.prefName||"美音")+(d.pref==="native"?"（系统合成 · 可离线）":"（词典真人录音 · 需联网）")))+
+      line("系统合成",esc(d.nativeSupported?(en.length?en.length+" 个英文音色":"有接口，但没装英文语音包"):"该浏览器不支持"))+
       line("已装到桌面",standalone?"是":"否，现在还在浏览器标签里")+
       line("网络",navigator.onLine?"正常":"断网")+
       (tips.length?"<div style=\"font-weight:800;color:#2c3448;margin:12px 0 6px\">该怎么办</div>"+tips.map(function(t,i){return "<div style=\"padding:2px 0\">"+(i+1)+". "+t+"</div>";}).join(""):"")+
-      "<div style=\"margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center\"><button type=\"button\" id=\"voiceTry\" class=\"btn btn-ghost\" style=\"font-size:12px;padding:5px 10px\">🎙 换个声音试试</button><button type=\"button\" id=\"helpCopy\" class=\"btn btn-ghost\" style=\"font-size:12px;padding:5px 10px\">复制浏览器信息</button><span id=\"helpCopyTip\" style=\"color:#5b6cff;font-size:12px\"></span></div>";
+      "<div style=\"margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center\"><button type=\"button\" id=\"voiceTry\" class=\"btn-ghost\">🎙 换个声音试试</button><button type=\"button\" id=\"helpCopy\" class=\"btn-ghost\">复制浏览器信息</button><span id=\"helpCopyTip\" style=\"color:#5b6cff;font-size:12px\"></span></div>";
 
     var vt=document.getElementById("voiceTry");
     if(vt&&window.VQSpeech){
@@ -169,12 +571,10 @@ if(window.VQCloud){
         VQSpeech.nextVoice();
         vt.textContent="🎙 正在试听："+VQSpeech.voiceName;
         VQSpeech.speak("vocabulary",{onDone:function(ok,reason){
-          if(ok){vt.textContent="🎙 "+VQSpeech.voiceName+" · 再点换下一个";}
-          else{vt.textContent="🎙 "+VQSpeech.voiceName+"（没发声："+(VQSpeech.reasonText(reason))+"）";}
+          vt.textContent=ok?"🎙 "+VQSpeech.voiceName+" · 再点换下一个":"🎙 "+VQSpeech.voiceName+"（没发声："+VQSpeech.reasonText(reason)+"）";
         }});
       };
     }
-
     document.getElementById("helpCopy").onclick=function(){
       var tip=document.getElementById("helpCopyTip");
       var text="UA: "+ua+"\n发声方式: "+(d.mode||"?")+"\n英文音色: "+(d.supported?en.length:"不支持")+"\n已装到桌面: "+standalone;
@@ -182,15 +582,16 @@ if(window.VQCloud){
       if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(ok,function(){});}
       else{tip.textContent="长按上方文字选中复制";}
     };
-    box.style.display="block";
-    btn.textContent="收起";
+    box.hidden=false;
+    btn.setAttribute("aria-expanded","true");
+    btn.textContent="收起环境信息";
   };
 })();
 </script>
 <script>
-/* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */
+/* ============ 5. 离线缓存：只在安全上下文注册（https / localhost）；file:// 与局域网 http 静默跳过 ============ */
 if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
-  addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{});});
+  addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
 }
 </script>
 </body>
