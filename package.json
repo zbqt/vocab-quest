@@ -24,11 +24,12 @@
   ],
   "scripts": {
     "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/cloud.test.mjs test/e2e.test.mjs",
-    "serve": "npx --yes http-server . -p 8642 -c-1",
+    "serve": "node tools/serve.mjs",
     "audit:data": "node tools/audit.mjs .",
     "fill:phonetic": "node tools/fill-phonetic.mjs .",
     "gen:icon": "node tools/gen-icon.mjs",
-    "gen:stats": "node tools/gen-stats.mjs ."
+    "gen:stats": "node tools/gen-stats.mjs .",
+    "start": "node tools/serve.mjs"
   },
   "devDependencies": {
     "jsdom": "^31.0.1"

@@ -222,3 +222,16 @@ test("PWA 的 start_url 带分享码，否则加到桌面后点开是 403", () =
   assert.equal(mf.scope, "./");
   assert.equal(mf.display, "standalone");
 });
+
+/* ================= 托管部署约定 ================= */
+
+test("启动脚本必须听平台的 PORT 并绑 0.0.0.0，否则部署会被判定「启动失败」", () => {
+  const pkg = JSON.parse(read("package.json"));
+  const startCmd = String(pkg.scripts.start || "") + " " + String(pkg.scripts.serve || "");
+  assert.match(startCmd, /tools\/serve\.mjs/, "启动入口应走 tools/serve.mjs");
+  assert.ok(!/-p\s*\d+/.test(startCmd), "端口不能写死：平台注入 PORT，写死就探不到");
+
+  const src = read("tools/serve.mjs");
+  assert.match(src, /process\.env\.PORT/, "必须从 PORT 环境变量取端口");
+  assert.match(src, /0\.0\.0\.0/, "必须绑 0.0.0.0，只听 127.0.0.1 平台探不进来");
+});
