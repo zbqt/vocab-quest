@@ -36,6 +36,9 @@
     match: "recog", lookZh: "recog",
     spell: "recall",
     listen: "listen", listenZh: "listen",
+    // 听音写汉语：同一族玩法的产出形态。都是「从声音进去」，
+    // 掌握判定要的是听觉通路能不能建立，不因为要手写就另立一个方向。
+    writeZh: "listen",
     produce: "produce"
   };
   // 每日队列：总词数上限 / 新词保底 / 新词上限
@@ -55,6 +58,21 @@
       .replace(/ː/g, "")
       .replace(/ɜr/g, "ər")
       .replace(/əʊ/g, "oʊ");
+  }
+
+  /* 词库里跟它同音的其它词。
+   * see / sea、peace / piece 这种在四六级词库里共 106 组，声音一模一样意思完全不同 ——
+   * 听音题必须知道这件事：选择题里不能挑同音词当干扰项（会有两个正确答案），
+   * 写汉语时要在答错后说清楚「你写的是另一个同音词的释义」，不能让人以为是自己听错了。 */
+  function homophonesOf(en, ph, pool) {
+    var key = soundKey(ph);
+    var out = [];
+    if (!key) return out;
+    for (var i = 0; i < (pool || []).length; i++) {
+      var w = pool[i];
+      if (w && w[0] !== en && soundKey(w[2]) === key) out.push(w[0]);
+    }
+    return out;
   }
   // 定级测试默认：6 层 × 7 题 = 42 题，约 3 分钟
   var PLACEMENT_BANDS = 6;
@@ -763,6 +781,20 @@
       };
     }
 
+    // 听音写汉语（writeZh）：同一族玩法的产出形态 —— 只给声音，汉语自己写出来。
+    // 和 listenZh 的分工：选义只要求「认得出」，写义要求「想得起来」。
+    // 真实听力里没人给你四个选项，所以这一型更接近终点；但它也更难，
+    // 该由用户自己决定什么时候上，不能默认替换掉选义。
+    if (force === "writeZh") {
+      return {
+        type: "writeZh",
+        en: en, zh: zh, ph: ph,
+        prompt: "",                       // 只给声音，和 listenZh 一样不提前露词形
+        answer: zh,                       // 判分时要拆义项，原文留给结算展示
+        homophones: homophonesOf(en, ph, pool)
+      };
+    }
+
     // 听音选义（listenZh）：只给声音，选项是四个中文释义。
     // 为什么单独造这个题型：考试里听到一个词，先想拼写、再想中文，是两步才到意思；
     // 「声音 → 意思」该是一条直路。这一型就是在练那条直路，和 listen（音→形）分工不同。
@@ -794,13 +826,7 @@
       });
       // 答案词在词库里有没有同音词？有就在答完后明确告诉用户「这题只靠声音分不出来」，
       // 不装作没有歧义，也不让用户以为自己听错了。
-      var homo = [];
-      if (ansKey) {
-        for (var hi = 0; hi < (pool || []).length; hi++) {
-          var hw = pool[hi];
-          if (hw && hw[0] !== en && soundKey(hw[2]) === ansKey) homo.push(hw[0]);
-        }
-      }
+      var homo = homophonesOf(en, ph, pool);
       return {
         type: force === "lookZh" ? "lookZh" : "listenZh",
         en: en, zh: zh, ph: ph,

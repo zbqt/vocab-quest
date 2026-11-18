@@ -648,3 +648,36 @@ test("英→中每题都挂在一个真实存在的词上，且一局里每个�
   assert.equal(new Set(ens).size, ens.length, "同一个词不该出两道题：" + ens.join(","));
   assert.deepEqual(new Set(ens), new Set(words.map((w) => w[0])), "本关 12 个词都得考到");
 });
+
+/* ================= 听音写汉语（writeZh） ================= */
+
+test("听音写汉语：只给声音，不给选项，答案保留整条释义", () => {
+  const pool = [["abandon", "v. 丢弃；放弃，抛弃", "əˈbændən"], ["ability", "n. 能力", "əˈbɪləti"]];
+  const q = VQ.buildQuestion(pool[0], 0, { forceType: "writeZh", pool });
+
+  assert.equal(q.type, "writeZh");
+  assert.equal(q.prompt, "", "答题前绝不能露词形");
+  assert.equal(q.answer, "v. 丢弃；放弃，抛弃", "判分要拆义项，原文留给结算展示");
+  assert.equal(q.options, undefined, "写汉语不该带选项 —— 带选项就变回选义了");
+  assert.equal(q.en, "abandon");
+  assert.equal(q.ph, "əˈbændən");
+});
+
+test("听音写汉语也标同音词：声音一样意思不一样，得说清楚", () => {
+  const pool = [
+    ["see", "v. 看见", "siː"],
+    ["sea", "n. 大海", "siː"],
+    ["pear", "n. 梨", "peə"]
+  ];
+  const q = VQ.buildQuestion(pool[0], 0, { forceType: "writeZh", pool });
+  assert.ok(q.homophones.includes("sea"), "同音词要标出来：" + q.homophones.join(","));
+  assert.ok(!q.homophones.includes("pear"), "不同音的词不能算进来");
+});
+
+test("听音写汉语记 listen 方向：和听音选义是一条通路，不因为要手写就另立方向", () => {
+  const s = VQ.createState(UNITS, TODAY);
+  VQ.recordAnswer(s, { word: "abandon", type: "writeZh", correct: true, today: TODAY });
+  assert.ok(s.words.abandon.dirs.listen, "从声音进去的就是听觉通路");
+  assert.equal(s.words.abandon.dirs.recall, undefined, "没考拼写，不算产出通路");
+  assert.equal(s.words.abandon.dirs.recog, undefined, "也没考认词");
+});

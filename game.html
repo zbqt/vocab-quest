@@ -56,6 +56,11 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .review-card{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;margin-bottom:14px;background:linear-gradient(135deg,#eef2ff,#f0fdfa);border:1px solid #dde5ff}
 .review-card h3{font-size:15px;margin-bottom:3px}
 .review-card p{font-size:12px;color:#6b7280}
+/* 两种形态的切换：放在入口卡片里，选之前就能看见代价（写义更难）。
+   小方块而不是下拉框——只有两个选项，下拉要多一次点击还看不见当前值。 */
+.zh-mode{display:inline-flex;gap:6px;margin-top:8px;background:#fff;border:1px solid #e4e9ff;border-radius:999px;padding:3px}
+.zh-chip{border:none;background:transparent;color:#7c85a0;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;transition:.15s}
+.zh-chip.on{background:#6c7bff;color:#fff}
 .btn{padding:9px 15px;border-radius:10px;font-size:13px;font-weight:700;border:none;transition:.15s}
 .btn-primary{background:#5b6cff;color:#fff}
 .btn-primary:hover{background:#4653d4}
@@ -294,6 +299,10 @@ body.shuf .listen-row .level-id{color:#f59e0b}
       <div>
         <h3>🎧 听音辨汉语</h3>
         <p id="listenAllDesc">只放声音，选项全是汉语；练「听到就直接懂」这条直路</p>
+        <div class="zh-mode" id="zhModePick">
+          <button class="zh-chip" data-m="pick">四选一</button>
+          <button class="zh-chip" data-m="write">手写汉语</button>
+        </div>
       </div>
       <button class="btn btn-warm" id="listenAllBtn">开练</button>
     </div>
@@ -427,16 +436,17 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
 <div class="toast" id="toast"></div>
 
-<script src="tts.js?v=0.12.1"></script>
-<script src="vocab_cz.js?v=0.12.1"></script>
-<script src="vocab_gz.js?v=0.12.1"></script>
-<script src="vocab.js?v=0.12.1"></script>
-<script src="vocab_c6.js?v=0.12.1"></script>
-<script src="grammar.js?v=0.12.1"></script>
-<script src="dictation.js?v=0.12.1"></script>
-<script src="fsrs.js?v=0.12.1"></script>
-<script src="engine.js?v=0.12.1"></script>
-<script src="cloud-sync.js?v=0.12.1"></script>
+<script src="tts.js?v=0.13.0"></script>
+<script src="vocab_cz.js?v=0.13.0"></script>
+<script src="vocab_gz.js?v=0.13.0"></script>
+<script src="vocab.js?v=0.13.0"></script>
+<script src="vocab_c6.js?v=0.13.0"></script>
+<script src="grammar.js?v=0.13.0"></script>
+<script src="dictation.js?v=0.13.0"></script>
+<script src="zh-match.js?v=0.13.0"></script>
+<script src="fsrs.js?v=0.13.0"></script>
+<script src="engine.js?v=0.13.0"></script>
+<script src="cloud-sync.js?v=0.13.0"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -769,14 +779,11 @@ function renderHome(){
   const lb=$("listenAllBtn");
   if(lb){
     const all=allLearned().length;
-    if(all>=LISTEN_MIN){
-      lb.disabled=false;lb.style.opacity=1;
-      $("listenAllDesc").textContent=`从全库 ${all} 个学过的词里随机抽 ${Math.min(LISTEN_N,all)} 个 · 只考「声音→汉语」`;
-    }else{
-      lb.disabled=true;lb.style.opacity=.45;
-      $("listenAllDesc").textContent=`学过的词还不够（${all}/${LISTEN_MIN}），先闯几关`;
-    }
+    if(all>=LISTEN_MIN){lb.disabled=false;lb.style.opacity=1;}
+    else{lb.disabled=true;lb.style.opacity=.45;}
   }
+  updateListenEntry();
+  paintZhMode();
   $("hpText").textContent=S.hp;
   $("lvText").textContent=S.lv;
   $("coinText").textContent=S.coin;
@@ -840,12 +847,55 @@ function renderLevel(u,l){
 function btn(txt,cls,fn){const b=document.createElement("button");b.className="btn "+cls;b.textContent=txt;b.onclick=e=>{e.stopPropagation();fn();};return b;}
 
 /* ================= 听力专练 ================= */
-/* 每个单元挂一个，只从「学过的词」里随机抽 12 个，全部出听音选义。
+/* 每个单元挂一个，只从「学过的词」里随机抽 12 个，全部出听音辨汉语。
    为什么不按关卡挂：听力练的是耳朵，前提是词已经认识；拿生词出听音题只能瞎蒙四选一，
    练的是猜运不是听力。按单元扫一遍学过的词，反复进每次抽到的不一样，覆盖面自然变大。
    为什么不占关卡进度：它不是新内容，是同一个词的另一条通路，单独记星。 */
 const LISTEN_MIN=6;
 const LISTEN_N=12;
+
+/* 同一族玩法的两种形态：四选一（认得出）和手写汉语（想得起来）。
+   默认四选一。写义明显更难，该由用户自己决定什么时候上 ——
+   把默认值偷偷换掉，等于在他不知情的时候给练习加难度。
+   偏好单独存一个键，不进存档结构：存档一动就影响已经积累的学习数据。 */
+const ZH_KEY="vq_zh_mode";
+function zhMode(){
+  try{return localStorage.getItem(ZH_KEY)==="write"?"write":"pick";}catch(e){return "pick";}
+}
+function zhType(){return zhMode()==="write"?"writeZh":"listenZh";}
+function setZhMode(m){
+  try{localStorage.setItem(ZH_KEY,m==="write"?"write":"pick");}catch(e){}
+  paintZhMode();
+}
+function setZhMode(m){
+  try{localStorage.setItem(ZH_KEY,m==="write"?"write":"pick");}catch(e){}
+  paintZhMode();
+  updateListenEntry();
+  // 每个单元的听力行都写着「听音辨汉语 / 听音写汉语」，切了形态不跟着变就是自相矛盾。
+  // 只重建这几行，不动整个首页 —— 重建首页会把用户展开的单元全收起来。
+  document.querySelectorAll(".listen-row").forEach(row=>{
+    const uid=Number(row.getAttribute("data-uid"));
+    const u=UNITS.filter(x=>x.id===uid)[0];
+    if(u)row.replaceWith(renderListenLevel(u));
+  });
+}
+function paintZhMode(){
+  const now=zhMode();
+  document.querySelectorAll("#zhModePick .zh-chip").forEach(b=>{
+    b.classList.toggle("on",b.getAttribute("data-m")===now);
+  });
+}
+/* 入口文案跟着模式走：用户在下决定之前就该知道这一档练的是「挑一个」还是「写出来」 */
+function updateListenEntry(){
+  const d=$("listenAllDesc");
+  if(!d)return;
+  const all=allLearned().length;
+  if(all<LISTEN_MIN){d.textContent=`学过的词还不够（${all}/${LISTEN_MIN}），先闯几关`;return;}
+  const how=zhMode()==="write"
+    ? "只放声音，自己把汉语写出来 · 写对一个义项就算对"
+    : "只放声音，选项全是汉语 · 练「听到就直接懂」这条直路";
+  d.textContent=`从全库 ${all} 个学过的词里随机抽 ${Math.min(LISTEN_N,all)} 个 · ${how}`;
+}
 function learnedInUnit(u){
   return POOLS[u.id].filter(w=>{
     const ws=S.words[w[0]];
@@ -854,16 +904,17 @@ function learnedInUnit(u){
 }
 function renderListenLevel(u){
   const row=document.createElement("div");row.className="level-row listen-row";
+  row.setAttribute("data-uid",u.id);   // 切换形态时要原地重建这一行（标题和说明都跟着变）
   const stars=(S.listenPass||{})[u.id]||0;
   const learned=learnedInUnit(u).length;
   const open=learned>=LISTEN_MIN;
   const starHtml=stars?`<span class="stars">${"★".repeat(stars)}${"☆".repeat(3-stars)}</span>`:"";
   row.innerHTML=`<div class="level-id">🎧</div>
     <div class="level-info">
-      <h4>听力专练 · 听音辨汉语</h4>
+      <h4>听力专练 · ${zhMode()==="write"?"听音写汉语":"听音辨汉语"}</h4>
       <p>${open
         ? (stars?`最好成绩 ${starHtml} · 从 ${learned} 个学过的词里抽 ${Math.min(LISTEN_N,learned)} 个`
-                :`从学过的 ${learned} 个词里随机抽 ${Math.min(LISTEN_N,learned)} 个 · 只考「声音→汉语」`)
+                :`从学过的 ${learned} 个词里随机抽 ${Math.min(LISTEN_N,learned)} 个 · ${zhMode()==="write"?"自己写汉语":"只考「声音→汉语」"}`)
         : `学过的词还不够（${learned}/${LISTEN_MIN}），先闯几关`}</p>
     </div>
     <div class="actions"></div>`;
@@ -900,9 +951,12 @@ function startListeningAll(){
   launchListening(picked,pool,0);
 }
 function launchListening(words,pool,uId){
+  // 两种形态共用同一条流程：同一批词、同一套计分、同一份星级。
+  // 差别只在「答出来」的方式（选一个 / 写出来），所以只换题型，不换别的。
+  const zhT=zhType();
   const sess=VQ.buildSession({
     words:words,
-    wordTypes:words.map(()=>"listenZh"),
+    wordTypes:words.map(()=>zhT),
     grammar:[],grammarN:0,spellEvery:0,mode:"listen",pool:pool
   });
   G={
@@ -911,10 +965,10 @@ function launchListening(words,pool,uId){
     idx:0,correct:0,wrong:0,hp:999,finished:false,answered:false,qStart:Date.now(),
     combo:0,correctWords:[],wrongList:[],skipped:0,degraded:0
   };
-  $("modeTag").textContent="🎧 听音辨汉语";
+  $("modeTag").textContent=zhT==="writeZh"?"🎧 听音写汉语":"🎧 听音辨汉语";
   $("modeTag").className="mode-tag review";
   $("levelTitle").textContent=uId>0?(S.shufMode?`乱序第${uId}段 · 听力`:`第${uId}单元 · 听力`):"全库听力";
-  $("gameHint").textContent=`${sess.total} 题全是听音辨汉语 · 不扣体力 · 每次随机抽词`;
+  $("gameHint").textContent=`${sess.total} 题全是${zhT==="writeZh"?"听音写汉语":"听音辨汉语"} · 不扣体力 · 每次随机抽词`;
   show("gameView");renderQ();
 }
 
@@ -976,6 +1030,21 @@ function start(u,l,mode){
 function degradeListen(){
   const q=G.qs&&G.qs[G.idx];
   if(!q||q.degraded)return false;
+  // 听音写汉语放不出声：题还是这道题（把汉语写出来），只是把词形露出来当拐杖。
+  // 不能退成四选一 —— 那会顺手把难度也降了，用户以为自己在练写，其实在挑。
+  if(q.type==="writeZh"){
+    q.degraded=true;q.type0=q.type;
+    // 没出声就没有发生听觉辨认，方向不能记 listen，否则听力掌握度会注水
+    q.dir="recog";
+    q.prompt=q.en;
+    $("cnWord").textContent=q.en;
+    $("enemyLabel").textContent="✍️ 看英文写汉语（本题听音未成立）";
+    $("qTitle").textContent="这台设备放不出声音，本题改成看英文写汉语，且不计入听力判定";
+    showAudio(q.en,q.ph);
+    $("audioStatus").textContent="设备无声 · 本题未计入听力判定";
+    G.degraded=(G.degraded||0)+1;
+    return true;
+  }
   if(q.type!=="listen"&&q.type!=="listenZh")return false;
   const wasZh=q.type==="listenZh";
   q.degraded=true;
@@ -1011,15 +1080,18 @@ function renderQ(){
   const isZhOpt=q.type==="listenZh"||q.type==="lookZh";
   $("cnWord").textContent=q.type==="listen"?"🎧 听发音，选出你听到的单词"
     :q.type==="listenZh"?"🎧 听发音，辨出它的汉语意思"
+    :q.type==="writeZh"?"🎧 听发音，写出它的汉语意思"
     :q.prompt;
   $("enemyLabel").textContent=q.type==="grammar"?"🧠 语法挑战"
     :q.type==="listen"?"🎧 听音选词"
     :q.type==="listenZh"?"🎧 听音辨汉语"
+    :q.type==="writeZh"?"✍️ 听音写汉语"
     :q.type==="lookZh"?"👾 看英文选中文"
     :(q.type==="match"?"👾 选择正确的英文单词":"✏️ 拼写这个单词");
   $("qTitle").textContent=q.type==="grammar"?"选出语法与用法正确的一项"
     :q.type==="listen"?"听不清可以多点几次，答案就藏在声音里"
     :q.type==="listenZh"?"先直奔汉语，别在心里先拼一遍——考试就是这么听的"
+    :q.type==="writeZh"?"写对一个义项就算对，不用把整条释义抄下来"
     :q.type==="lookZh"?"看见就懂，不用在心里先翻译两遍"
     :(q.type==="match"?"点击下方选项击败它":"根据中文释义输入完整单词");
   $("qcount").textContent=(G.idx+1)+"/"+T;
@@ -1029,7 +1101,7 @@ function renderQ(){
   renderHearts();
   if(q.type==="spell")showAudio(q.en,q.ph);
   else if(q.type==="listen")showAudio(q.en,"");   // 不传音标：音标几乎等于把答案念出来
-  else if(q.type==="listenZh")showAudio(q.en,""); // 同理，听音选义也不能提前给音标
+  else if(q.type==="listenZh"||q.type==="writeZh")showAudio(q.en,""); // 同理，听音辨义不能提前给音标
   else if(q.type==="lookZh")showAudio(q.en,q.ph); // 已经露了词形，音标就不算泄题
   else hideAudio();
   preloadWord(q.en);
@@ -1044,6 +1116,35 @@ function renderQ(){
       const b=document.createElement("button");b.className="option";b.textContent=opt;
       b.onclick=()=>pickMatch(b,opt);box.appendChild(b);
     });
+  }else if(q.type==="writeZh"){
+    // 中文输入框。和拼写题的区别不只是语言：这一型必须先听，听清了才写，
+    // 所以**不自动抢焦点** —— 键盘一弹起来就把「播放」和题干顶到屏幕外，
+    // 手机上等于逼着人先猜一个词再听。
+    const wrap=document.createElement("div");
+    wrap.style.cssText="display:flex;gap:8px;margin-top:4px";
+    const inp=document.createElement("input");
+    inp.id="zhInput";inp.type="text";inp.autocomplete="off";inp.spellcheck=false;
+    inp.placeholder="写汉语意思，如「牺牲」";
+    inp.style.cssText="flex:1;min-width:0;padding:13px 14px;border-radius:12px;border:2px solid #e8ecff;font-size:16px;font-weight:700;text-align:center;outline:none;font-family:inherit";
+    // 中文输入法里回车是「确认候选词」，不是提交。不加这个判断，
+    // 刚选完第一个字就被判错 —— 这一型最容易踩的坑。
+    let composing=false;
+    inp.addEventListener("compositionstart",()=>{composing=true;});
+    inp.addEventListener("compositionend",()=>{composing=false;});
+    inp.onkeydown=e=>{
+      if(e.key!=="Enter")return;
+      if(composing||e.isComposing)return;
+      pickWriteZh(inp.value);
+    };
+    wrap.appendChild(inp);
+    wrap.appendChild(btn("提交","btn-primary",()=>pickWriteZh(inp.value)));
+    box.appendChild(wrap);
+    // 桌面端给光标（能用键盘，省一次点击）；触摸设备留给用户先听。
+    // matchMedia 在个别老 WebView 里不存在，缺了就当桌面处理 —— 抢焦点只是不顺手，不该把页面弄崩。
+    const coarse=typeof matchMedia==="function"&&matchMedia("(pointer:coarse)").matches;
+    if(!coarse){
+      setTimeout(()=>{const el=$("zhInput");if(el&&!el.disabled)el.focus();},60);
+    }
   }else{
     const wrap=document.createElement("div");
     wrap.style.cssText="display:flex;gap:8px;margin-top:4px";
@@ -1060,7 +1161,7 @@ function renderQ(){
 
   // 听音题：进来先自动播一次。真的放不出声才降级；
   // iOS 的 not-allowed 属于「点一下就能播」，那种情况绝不能降级，否则 iPhone 永远用不上听音题。
-  if(q.type==="listen"||q.type==="listenZh"){
+  if(q.type==="listen"||q.type==="listenZh"||q.type==="writeZh"){
     const snap=q;      // 定时器 120ms 后才跑，这期间题目可能已经被换掉
     setTimeout(()=>{
       if(G.answered||G.finished)return;
@@ -1124,6 +1225,53 @@ function pickMatch(btn,val){
     if(val===q.answer)playWord(q.en,{auto:true});
   }else hideAudio();
   recordWordResult(q,val===q.answer,val);
+  afterAnswer();
+}
+/* 听音写汉语：判分要拆义项。
+   词库释义是 `n. 牺牲；牺牲品` 这种词典格式，用户听对了只会写「牺牲」——
+   直接字符串相等必然全错，人会被判到怀疑自己的耳朵。VQZh 把标准答案拆成
+   一组可以互换的说法，写出任何一个都算对，写整条也算对。 */
+function pickWriteZh(raw){
+  if(G.answered||G.finished)return;
+  const q=G.qs[G.idx];
+  const val=String(raw==null?"":raw).trim();
+  if(!val){toast("先听清楚，写一个汉语意思就行");return;}
+
+  G.answered=true;
+  const r=VQZh.check(q.answer,val);
+  const inp=$("zhInput");
+  if(inp){inp.disabled=true;inp.style.borderColor=r.ok?"#22c55e":"#ef4444";}
+  const sub=document.querySelector("#optionsBox .btn-primary");
+  if(sub)sub.style.display="none";
+
+  if(r.ok){
+    G.correct++;G.combo++;if(q.en)G.correctWords.push(q.en);
+    // 命中义项和用户原话不一样时点明：「能干」对「有能力的」也算对。
+    // 不说这一句，用户不知道自己刚才是哪里对上了，下次还是不敢写近义词。
+    const said=VQZh.normalize(val);
+    $("feedback").textContent=`✔ ${q.degraded?"认对了":"听对了"}！`
+      +(r.matched&&said&&said!==r.matched?`「${val}」和「${r.matched}」是一个意思`:"");
+    $("feedback").className="feedback good";
+    showAudio(q.en,q.ph);playWord(q.en,{auto:true});
+  }else{
+    onWrong(q.answer);
+    // 判错不能只给一条整条释义：告诉他能怎么写，才学得到下一个说法
+    const accept=VQZh.hint(q.answer,3);
+    $("feedback").textContent=`✘ 你写的是「${val}」`+(accept.length?`　可接受：${accept.join(" / ")}`:"");
+    $("feedback").className="feedback bad";
+    // 同音词：写错不一定是耳力问题，可能是词库里另一个同音词的意思
+    if(q.homophones&&q.homophones.length&&!q.degraded){
+      $("feedback").textContent+=`　📌 ${q.homophones.slice(0,2).join(" / ")} 与它同音，光听音分不出来`;
+    }
+    if(q.degraded)$("feedback").textContent+="　⚠️ 本题设备没出声，未计入听力判定";
+    showAudio(q.en,q.ph);
+  }
+  // 和拼写题一样把完整释义摊开：写对写错都该看到这个词的全貌
+  $("optDefs").style.display="flex";
+  const sph=q.ph?` <span class="phonetic">/${q.ph}/</span>`:"";
+  $("optDefs").innerHTML=`<div class="opt-def-row ${r.ok?"correct":"wrongpick"}"><span class="od-word">${q.en}${sph}</span><span class="od-zh">${q.zh}</span><button class="audio-btn" data-w="${q.en}">🔊</button></div>`;
+  $("optDefs").querySelector(".audio-btn").onclick=()=>playWord(q.en);
+  recordWordResult(q,r.ok,val);
   afterAnswer();
 }
 function pickSpell(val){
@@ -1435,6 +1583,15 @@ function finishPlacement(){
 $("placeBtn").onclick=startPlacement;
 $("prAgain").onclick=startPlacement;
 $("listenAllBtn").onclick=()=>{if(!$("listenAllBtn").disabled)startListeningAll();};
+// 听音辨汉语的形态切换：选一个 / 写出来
+document.querySelectorAll("#zhModePick .zh-chip").forEach(b=>{
+  b.onclick=()=>{
+    const m=b.getAttribute("data-m");
+    if(m===zhMode())return;
+    setZhMode(m);
+    toast(m==="write"?"已切到手写汉语：听完自己写，写对一个义项就算对":"已切到四选一：听完从四个汉语里挑");
+  };
+});
 $("prGo").onclick=()=>{renderHome();show("homeView");openDaily();};
 $("placeBack").onclick=()=>{P=null;renderHome();show("homeView");};
 document.addEventListener("keydown",e=>{

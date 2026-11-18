@@ -9,7 +9,7 @@ const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (f) => fs.readFileSync(path.join(DIR, f), "utf8");
 const HTML = read("game.html");
 const INLINE = HTML.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
-const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "dictation.js", "fsrs.js", "engine.js", "cloud-sync.js"];
+const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "dictation.js", "zh-match.js", "fsrs.js", "engine.js", "cloud-sync.js"];
 
 function boot(cat = "cet4", opts = {}) {
   const dom = new JSDOM(HTML, {
@@ -60,6 +60,12 @@ function answerCurrent(ctx, correct = true) {
   if (q.type === "spell") {
     const inp = ctx.$("spellInput");
     inp.value = correct ? q.answer : "zzz";
+    [...ctx.doc.querySelectorAll("#optionsBox .btn")].find((b) => b.textContent === "提交").click();
+  } else if (q.type === "writeZh") {
+    const inp = ctx.$("zhInput");
+    assert.ok(inp, "听音写汉语必须有输入框");
+    // 答对要写一个「可接受的义项」，不能直接抄整条释义 —— 那才是用户真实的写法
+    inp.value = correct ? ctx.win.VQZh.hint(q.answer, 1)[0] : "zzz";
     [...ctx.doc.querySelectorAll("#optionsBox .btn")].find((b) => b.textContent === "提交").click();
   } else {
     const options = [...ctx.doc.querySelectorAll("#optionsBox .option")];
@@ -1216,6 +1222,183 @@ const LISTEN_ZH_Q = {
   ],
   homophones: []
 };
+
+/* ================= 听音写汉语（同一族玩法的产出形态） ================= */
+
+// 真实词库的释义就是这种格式：一条里塞了词性和多个义项
+const WRITE_ZH_Q = {
+  type: "writeZh", en: "abandon", zh: "v. 丢弃；放弃，抛弃", ph: "ə'bændən",
+  prompt: "", answer: "v. 丢弃；放弃，抛弃", homophones: []
+};
+
+function plantWriteZh(ctx) {
+  const G = openFirstLevel(ctx);
+  G.qs[G.idx] = Object.assign({}, WRITE_ZH_Q);
+  ctx.win.renderQ();
+  return G;
+}
+
+function submitZh(ctx, text) {
+  const inp = ctx.$("zhInput");
+  inp.value = text;
+  [...ctx.doc.querySelectorAll("#optionsBox .btn")].find((b) => b.textContent === "提交").click();
+}
+
+test("听音写汉语答题前：只给声音和输入框，绝不提前露词形和音标", () => {
+  const ctx = boot("cet4");
+  plantWriteZh(ctx);
+
+  assert.match(ctx.$("enemyLabel").textContent, /听音写汉语/, "眉标要说清是写汉语");
+  assert.match(ctx.$("cnWord").textContent, /写出它的汉语意思/, "题干只说要写什么，不给词");
+  assert.ok(!ctx.$("cnWord").textContent.includes("abandon"), "题干不能把答案写出来");
+  assert.equal(ctx.$("phonetic").textContent, "", "音标基本等于答案，答题前不能露");
+
+  const inp = ctx.$("zhInput");
+  assert.ok(inp, "必须有输入框 —— 没有就没法写");
+  assert.match(inp.placeholder, /汉语/, "占位文案要说清写什么：" + inp.placeholder);
+  assert.equal(ctx.doc.querySelectorAll("#optionsBox .option").length, 0,
+    "写汉语不该出现四选一选项，那会变回选义");
+});
+
+test("写对一个义项就算对：词库释义是「v. 丢弃；放弃，抛弃」，写「放弃」要判对", () => {
+  const ctx = boot("cet4");
+  const G = plantWriteZh(ctx);
+  const before = G.correct;
+
+  submitZh(ctx, "放弃");
+
+  assert.equal(G.answered, true);
+  assert.equal(G.correct, before + 1, "写对要计分，不然通关线永远够不着");
+  assert.match(ctx.$("feedback").textContent, /听对了/, "要说清楚是靠耳朵听出来的");
+  assert.equal(ctx.$("nextBtn").style.display, "block", "答完要能进下一题");
+  // 答完把完整释义摊开：写对写错都该看到这个词的全貌
+  assert.match(ctx.$("optDefs").textContent, /abandon/);
+  assert.match(ctx.$("optDefs").textContent, /丢弃/);
+});
+
+test("写英文不算对：听错成拼写不该蒙混过去，还要告诉他能怎么写", () => {
+  const ctx = boot("cet4");
+  const G = plantWriteZh(ctx);
+
+  submitZh(ctx, "abandon");
+
+  assert.equal(G.correct, 0, "写英文不是汉语意思");
+  assert.match(ctx.$("feedback").textContent, /你写的是「abandon」/, "得让他看见自己写了什么：" + ctx.$("feedback").textContent);
+  assert.match(ctx.$("feedback").textContent, /可接受/, "判错要给能怎么写，不能只给一条整条释义");
+  assert.match(ctx.$("feedback").textContent, /放弃/, "可接受的说法里要有「放弃」");
+});
+
+test("听音写汉语记的是听觉通路，不是认词通路", () => {
+  const ctx = boot("cet4");
+  const G = plantWriteZh(ctx);
+  const q = G.qs[G.idx];
+  submitZh(ctx, "放弃");
+
+  const s = ctx.api.getS();
+  assert.ok(s.words[q.en].dirs.listen, "写汉语是从声音进去的，要记听觉方向");
+  assert.equal(s.words[q.en].dirs.recall, undefined, "没考拼写，不能算产出通路");
+  // 事件里记原始题型（能区分选义还是写义），方向靠 TYPE_DIR 映射成 listen
+  const ev = s.events.filter((e) => e.type === "writeZh" && e.word === q.en);
+  assert.equal(ev.length, 1, "事件要记下是这一型答的：" + JSON.stringify(s.events.map((e) => e.type)));
+});
+
+test("设备放不出声：题还是「写汉语」，只是把词形露出来当拐杖，且不记听力", async () => {
+  const ctx = boot("cet4");
+  delete ctx.win.Audio;
+  delete ctx.win.speechSynthesis;
+  delete ctx.win.SpeechSynthesisUtterance;
+  const G = plantWriteZh(ctx);
+  const q = G.qs[G.idx];
+
+  await new Promise((r) => setTimeout(r, 400)); // 等自动试播失败
+
+  assert.equal(q.type, "writeZh", "不能退成四选一 —— 那会顺手把难度也降了");
+  assert.equal(ctx.$("cnWord").textContent, "abandon", "听不见就把词形给出来，否则这题无解");
+  assert.match(ctx.$("qTitle").textContent, /改成看英文写汉语/);
+  assert.match(ctx.$("audioStatus").textContent, /未计入/, "没出声就不算听过");
+
+  submitZh(ctx, "放弃");
+  assert.equal(G.answered, true, "降级后仍然要能作答");
+  assert.ok(!(ctx.api.getS().words[q.en].dirs.listen || {}).ok,
+    "设备没出声，这一笔不能算听觉掌握");
+});
+
+test("中文输入法按回车选字，不能被当成提交", () => {
+  const ctx = boot("cet4");
+  const G = plantWriteZh(ctx);
+  const inp = ctx.$("zhInput");
+
+  // 输入法组字过程中按回车是「确认候选词」，这时提交等于把半截答案判错
+  inp.dispatchEvent(new ctx.win.Event("compositionstart"));
+  inp.value = "fang";
+  inp.dispatchEvent(new ctx.win.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  assert.equal(G.answered, false, "组字中的回车不能提交");
+
+  inp.value = "放弃";
+  inp.dispatchEvent(new ctx.win.Event("compositionend"));
+  inp.dispatchEvent(new ctx.win.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  assert.equal(G.answered, true, "组字结束后回车才该提交");
+  assert.equal(G.correct, 1);
+});
+
+test("入口能切换两种形态：切到写汉语后整局都是写汉语，文案也跟着变", () => {
+  const ctx = boot("cet4");
+  playThrough(ctx);
+  ctx.$("resHome").click();
+
+  const pick = ctx.doc.querySelector("#zhModePick");
+  assert.ok(pick, "入口要能看见两种形态，否则用户不知道有得选");
+  const chips = [...pick.querySelectorAll(".zh-chip")];
+  assert.equal(chips.length, 2);
+  assert.ok(chips[0].classList.contains("on"), "默认是四选一 —— 写汉语更难，不该默认换掉");
+
+  chips[1].click();   // 手写汉语
+  assert.ok(chips[1].classList.contains("on"), "点了要立刻高亮");
+  assert.ok(!chips[0].classList.contains("on"));
+  assert.match(ctx.$("listenAllDesc").textContent, /写/, "入口文案要跟着变，不要让人猜");
+
+  const row = ctx.doc.querySelector(".listen-row");
+  assert.match(row.textContent, /写汉语/, "单元卡片标题也要说明这一档练的是什么");
+  [...row.querySelectorAll(".btn")].find((b) => b.textContent === "开始").click();
+
+  const G = ctx.api.getG();
+  assert.ok(G.qs.length > 0);
+  G.qs.forEach((q) => {
+    assert.equal(q.type, "writeZh", "整局都该是写汉语：" + q.type);
+    assert.equal(q.prompt, "", "不能出现文字题干");
+  });
+  assert.match(ctx.$("modeTag").textContent, /写汉语/);
+  assert.ok(ctx.$("zhInput"), "第一题就该是输入框");
+});
+
+test("四个阶段的词库都能出听音写汉语：题型不绑某一份词库", () => {
+  ["cz", "gz", "cet4", "c6"].forEach((cat) => {
+    const ctx = boot(cat);
+    const bank = ctx.api.getBank();
+    const words = bank.slice(0, 12);
+    const sess = ctx.win.VQEngine.buildSession({
+      words: words, wordTypes: words.map(() => "writeZh"),
+      grammar: [], grammarN: 0, spellEvery: 0, mode: "listen", pool: bank
+    });
+    assert.equal(sess.questions.length, 12, cat + "：一局该有 12 道");
+    assert.equal(new Set(sess.questions.map((q) => q.en)).size, 12, cat + "：12 个词各考一次");
+    sess.questions.forEach((q) => {
+      assert.equal(q.type, "writeZh", cat + " 阶段出了别的题型：" + q.type);
+      assert.ok(q.answer && q.answer.length > 0, cat + "：必须有可判分的释义");
+      assert.ok(q.en, cat + "：必须挂在具体词上，否则不记记忆状态");
+    });
+  });
+});
+
+test("默认不切的时候仍然是四选一：老用户打开不该被偷偷加难度", () => {
+  const ctx = boot("cet4");
+  playThrough(ctx);
+  ctx.$("resHome").click();
+  const row = ctx.doc.querySelector(".listen-row");
+  [...row.querySelectorAll(".btn")].find((b) => b.textContent === "开始").click();
+  ctx.api.getG().qs.forEach((q) => assert.equal(q.type, "listenZh"));
+  assert.equal(ctx.win.VQSpeech ? 1 : 1, 1);
+});
 
 function plantListenZh(ctx) {
   const G = openFirstLevel(ctx);
