@@ -595,7 +595,14 @@ function setProgress(trackId,fillId,pct){
 }
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
 function todayStr(){return VQ.dayKey(new Date());}
-function renderHearts(){$("hpHearts").textContent=G&&G.mode==="play"?Array(3).fill(0).map((_,i)=>i<G.hp?"♥":"♡").join(" "):"—";}
+/* 只有闯关模式才扣体力。别的阶段（新词认识 / 复习）原来显示一个「—」占位，
+   在页面上就是一个孤零零的破折号，看着像样式坏了 —— 干脆整块隐藏。 */
+function renderHearts(){
+  const el=$("hpHearts");
+  const inPlay=!!(G&&G.mode==="play");
+  el.textContent=inPlay?Array(3).fill(0).map((_,i)=>i<G.hp?"♥":"♡").join(" "):"";
+  el.style.display=inPlay?"":"none";
+}
 
 /* ================= 发音（浏览器原生 TTS，无外链、离线可用） ================= */
 let audioToken=0;
