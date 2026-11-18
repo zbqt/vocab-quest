@@ -152,8 +152,8 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div id="dlgList"></div>
 
     <p class="intro" style="text-align:center;margin-top:14px;color:#a3a9ba">
-      整句默认用云端人声朗读，声线接近真人，需要联网。<br>
-      没网、或不想把句子发出去，练习时点「🌐 人声」切成设备语音，离线也能用。
+      每一句都有站点内置的人声录音，第一次打开需要联网取一次，之后离线也能听。<br>
+      手机上不需要额外的语音引擎，也不用换浏览器。
     </p>
   </div>
 
@@ -182,8 +182,9 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
       </div>
       <div class="hint" id="hintBox"></div>
       <div class="warn" id="noVoice">
-        这台设备不支持整句朗读（常见于国产安卓自带浏览器）。<br>
-        换 Chrome / Edge / Safari 才有声音；现在可以先点下面「看原句」，对着抄写练手。
+        两条声音通道都没成功：内置人声没取到，手机自带的语音也读不了英文。<br>
+        先确认手机没静音、媒体音量不是 0，再点上面的按钮重试；<br>
+        这一句也可以先「看中文提示」，看着听一遍再写。
       </div>
 
       <input class="ipt" id="ansInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="听到什么就写什么，一句话">
@@ -239,11 +240,11 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <button class="tool" id="sheetClose" style="width:100%;margin-top:4px">收起</button>
 </div>
 
-<script src="prosody.js"></script>
-<script src="sentence-audio.js"></script>
-<script src="tts.js"></script>
-<script src="dictation.js"></script>
-<script src="dialogues.js"></script>
+<script src="prosody.js?v=0.11.0"></script>
+<script src="sentence-audio.js?v=0.11.0"></script>
+<script src="tts.js?v=0.11.0"></script>
+<script src="dictation.js?v=0.11.0"></script>
+<script src="dialogues.js?v=0.11.0"></script>
 <script>
 /* ================= 工具 ================= */
 function $(id){return document.getElementById(id);}
@@ -324,11 +325,16 @@ function renderLine(){
   $("playBig").appendChild(sm);
   $("playBig").classList.remove("playing");
   paintWho(L);
+  // 这台浏览器压根没有语音引擎，偏好却停在「设备语音」→ 进来就纠正，
+  // 别等用户点了播放再告诉他没声音（他只会觉得这个练习坏了）
+  if(window.VQSpeech&&VQSpeech.deviceSupported===false&&VQSpeech.getDialogueSource&&VQSpeech.getDialogueSource()!=="cloud"){
+    VQSpeech.setDialogueSource("cloud");
+  }
   paintSrc();
   paintDots(L);
   paintSlow();
   // 先把这一句的声音取下来：听写要反复听同一句，2 秒的等待会被放大很多次
-  if(window.VQSpeech&&VQSpeech.prefetchCloud)VQSpeech.prefetchCloud(L.en,{speaker:L.sp});
+  if(window.VQSpeech&&VQSpeech.prefetchCloud)VQSpeech.prefetchCloud(L.en,{speaker:L.sp,file:audioPath(D.id,idx)});
   setTimeout(()=>{ if($("ansInput").disabled===false) $("ansInput").focus(); },80);
 }
 
@@ -380,52 +386,79 @@ function paintSrc(){
 }
 
 /* ================= 播放 ================= */
+/* 每一句都有一份站点内的 mp3（tools/fetch-audio.mjs 预渲染）。
+   手机上这条路最要紧：同源文件不跨域、没有防盗链，也不依赖浏览器有没有语音引擎。 */
+function audioPath(id,i){ return "./audio/"+id+"/"+i+".mp3"; }
+
 function playLine(){
   if(!D)return;
   if(playing){stopPlay();return;}
   const L=D.lines[idx];
   if(!window.VQSpeech){$("noVoice").classList.add("show");return;}
-  beginLine(L,sourceNow(),false);
+  beginLine(L,sourceNow(),{});
 }
 
-/* 两条通道：云端人声优先，取不到就当场换设备合成 —— 不让用户为了听一句点两次。
-   云端失败常见于：没网、接口被拦、句子太长被截。这三种都不该变成"没声音"。 */
-function beginLine(L,src,retried){
+/* 两条通道互相兜底：人声取不到就换设备语音，设备读不了就换人声。
+   手机上的实情是「设备合成基本是死的」—— 国产安卓浏览器常常连 speechSynthesis
+   都没有，所以绝不能只做单向降级，否则用户看到的就是一句"没声音"。 */
+function beginLine(L,src,tried){
+  tried=tried||{};
+  // 设备这条路根本不通（浏览器没有合成引擎）→ 一上来就走人声，别让用户白点一次
+  if(src!=="cloud"&&VQSpeech&&VQSpeech.deviceSupported===false){
+    src="cloud";
+    if(VQSpeech.setDialogueSource)VQSpeech.setDialogueSource("cloud");
+    paintSrc();
+    toast("这台浏览器读不了英文整句，已自动改用内置人声");
+  }
   playing=true;
   $("playBig").classList.add("playing");
   $("playBig").textContent=src==="cloud"?"⏳ 正在取人声…":"⏹ 正在播…（点一下停）";
   $("noVoice").classList.remove("show");
 
-  const device=()=>{
-    if(typeof VQSpeech.speakDialogue!=="function"){endLine(false,"unsupported");return;}
-    VQSpeech.speakDialogue(L.en,{
-      speaker:L.sp,
-      speed:slow?RATE_SLOW:RATE_NORMAL,
-      onSegment:i=>lightDots(i),
-      onDone:(ok,reason)=>endLine(ok,reason)
-    });
-  };
+  if(src!=="cloud"||typeof VQSpeech.speakCloud!=="function"){device(tried);return;}
 
-  if(src!=="cloud"||typeof VQSpeech.speakCloud!=="function"){device();return;}
-
+  tried.cloud=true;
   let settled=false;
   const started=VQSpeech.speakCloud(L.en,{
     speaker:L.sp,
+    file:audioPath(D.id,idx),
     speed:slow?RATE_MP3_SLOW:RATE_NORMAL,
     onSegment:i=>lightDots(i),
     onDone:(ok,reason)=>{
       settled=true;
       // not-allowed 是"缺一次点击"，interrupted 是被新播放顶掉，都不算这条路不行
-      if(!ok&&!retried&&reason!=="not-allowed"&&reason!=="interrupted"){
-        toast("云端人声没取到，改用设备语音");
-        beginLine(L,"device",true);
+      if(!ok&&reason!=="not-allowed"&&reason!=="interrupted"&&!tried.device){
+        toast("人声没取到，改用设备语音");
+        device(tried);
         return;
       }
       endLine(ok,reason);
     }
   });
   // speakCloud 返回 false 时 onDone 已经同步报过错了；只是兜个底，防止将来改坏
-  if(!started&&!settled)beginLine(L,"device",true);
+  if(!started&&!settled)device(tried);
+
+  function device(t){
+    t.device=true;
+    if(typeof VQSpeech.speakDialogue!=="function"){endLine(false,"unsupported");return;}
+    VQSpeech.speakDialogue(L.en,{
+      speaker:L.sp,
+      speed:slow?RATE_SLOW:RATE_NORMAL,
+      onSegment:i=>lightDots(i),
+      onDone:(ok,reason)=>{
+        // 反过来：设备读不出来（最常见是没装英文语音包）→ 换人声再试一次。
+        // 既然这条路在真机上不通，就把偏好改过来，别让用户每次进来都先哑一次。
+        if(!ok&&reason!=="interrupted"&&!t.cloud&&typeof VQSpeech.speakCloud==="function"){
+          if(VQSpeech.setDialogueSource)VQSpeech.setDialogueSource("cloud");
+          paintSrc();
+          toast("这台手机的语音读不了英文，已改用内置人声");
+          beginLine(L,"cloud",t);
+          return;
+        }
+        endLine(ok,reason);
+      }
+    });
+  }
 }
 
 function endLine(ok,reason){
@@ -488,8 +521,8 @@ function openSrcSheet(){
   const box=$("srcList");box.innerHTML="";
   const cur=sourceNow();
   const items=[
-    {id:"cloud",name:"🌐 云端人声",desc:"合成好的整句音频，声线接近真人。要联网，台词会发到第三方服务。"},
-    {id:"device",name:"📱 设备语音",desc:"手机自带的合成引擎。不联网、句子不外发，但声音偏机械。"}
+    {id:"cloud",name:"🌐 内置人声",desc:"站点里预先生成好的整句录音。手机上最稳，第一次要联网，之后离线可听。"},
+    {id:"device",name:"📱 设备语音",desc:"手机自带的合成引擎。不需要网络，但很多国产安卓浏览器没有这个引擎，声音也偏机械。"}
   ];
   items.forEach(it=>{
     const row=document.createElement("div");
@@ -501,7 +534,7 @@ function openSrcSheet(){
       paintSrc();
       if(D&&D.lines)paintDots(D.lines[idx]);
       closeSheet();
-      toast(it.id==="cloud"?"已切到云端人声":"已切到设备语音");
+      toast(it.id==="cloud"?"已切到内置人声":"已切到设备语音");
       playLine();
     };
     box.appendChild(row);

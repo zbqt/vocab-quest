@@ -883,11 +883,14 @@ function bootListening(opts) {
     { name: "Microsoft Aria Online (Natural)", lang: "en-US", localService: false },
     { name: "Google US English", lang: "en-US", localService: true }
   ];
-  win.speechSynthesis = {
+  // noSynth：模拟国产安卓浏览器——连 speechSynthesis 都没有
+  if (!opts.noSynth) win.speechSynthesis = {
     paused: false, speaking: false, pending: false,
     cancel() { this.speaking = false; this.pending = false; },
     speak(u) {
       spoken.push({ text: u.text, rate: u.rate, pitch: u.pitch, voice: u.voice ? u.voice.name : null });
+      // speechFail：模拟「有引擎但读不出来」，最常见是没装英文语音包
+      if (opts.speechFail) { setTimeout(() => { if (u.onerror) u.onerror({ error: opts.speechFail }); }, 0); return; }
       this.speaking = true;
       setTimeout(() => {
         this.speaking = false;
@@ -898,7 +901,7 @@ function bootListening(opts) {
     getVoices() { return voices; },
     addEventListener() {}
   };
-  win.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+  if (!opts.noSynth) win.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
   // 云端人声走的是 <audio>，所以要模拟够真：事件、playbackRate、出错的三条路
   win.Audio = class {
     constructor(src) {
@@ -916,7 +919,10 @@ function bootListening(opts) {
     load() {}
     pause() { this.paused = true; }
     play() {
-      if (opts.audioFail) {
+      this._played = (this._played || 0) + 1;
+      // audioFail: true = 什么源都放不出来；"first" = 只让站内文件失败（模拟文件没传上去）
+      const fail = opts.audioFail === "first" ? /^\.\/audio\//.test(this.initSrc) : !!opts.audioFail;
+      if (fail) {
         setTimeout(() => this._fire("error"), 0);
         return Promise.reject(Object.assign(new Error("no src"), { name: "NotSupportedError" }));
       }
@@ -1172,18 +1178,28 @@ test("听写页必须屏蔽 Referer：少了这条，云端音频一律 code 4",
     "referrer 策略必须排在第一个子资源之前，否则它生效前已经发出带 Referer 的请求了");
 });
 
-test("默认就是云端人声：一句话只请求一次整句音频，不走设备合成", async () => {
+test("默认播站内 mp3：同源文件，手机上不依赖第三方接口也不依赖语音引擎", async () => {
   const ctx = bootListening();          // 不给偏好 = 默认
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   ctx.$("playBig").click();
   await new Promise((r) => setTimeout(r, 150));
 
-  assert.equal(ctx.audios.length, 1,
-    "整句一次取，而且预取的那一个要复用来播，不能请求两遍：" + ctx.audios.length);
-  const src = ctx.audios[0].initSrc;
-  assert.match(src, /fanyi\.baidu\.com/, "地址：" + src);
-  assert.match(src, /lan=en/, "A 默认美音");
-  assert.equal(ctx.spoken.length, 0, "云端能出声时不该再走设备合成");
+  const played = ctx.audios.filter((a) => a._played);
+  assert.equal(played.length, 1, "整句只播一条，不能同时播两条源：" + ctx.audios.map((a) => a.initSrc).join(" | "));
+  const src = played[0].initSrc;
+  assert.equal(src, "./audio/cafe/0.mp3", "第一句要播站内文件，地址：" + src);
+  assert.equal(ctx.spoken.length, 0, "站内音频能出声时不该再走设备合成");
+  assert.match(ctx.$("playBig").textContent, /再听一次/);
+});
+
+test("站内音频缺失时自动退到第三方接口，不让用户看到「没声音」", async () => {
+  const ctx = bootListening({ audioFail: "first" });   // 只有第一个地址失败
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 200));
+
+  const tried = ctx.audios.filter((a) => a._played).map((a) => a.initSrc);
+  assert.ok(tried.some((u) => /fanyi\.baidu\.com/.test(u)), "本地文件失败后要改打接口：" + tried.join(" | "));
   assert.match(ctx.$("playBig").textContent, /再听一次/);
 });
 
@@ -1194,8 +1210,8 @@ test("B 说话时换成另一条声线（英音），不是同一个声音假装
   assert.equal(ctx.$("whoBadge").textContent, "B");
   ctx.$("playBig").click();
   await new Promise((r) => setTimeout(r, 150));
-  const uk = ctx.audios.filter((a) => /lan=uk/.test(a.initSrc));
-  assert.ok(uk.length > 0, "B 必须走另一条声线，实际请求：" + ctx.audios.map((a) => a.initSrc).join(" | "));
+  const played = ctx.audios.filter((a) => a._played).map((a) => a.initSrc);
+  assert.ok(played.some((u) => /audio\/cafe\/1\.mp3$/.test(u)), "B 播第二句的站内文件：" + played.join(" | "));
 });
 
 test("云端取不到声音时当场退回设备合成，不让用户点第二次", async () => {
@@ -1217,12 +1233,42 @@ test("切成设备语音后不再向云端发请求", async () => {
   assert.ok(ctx.spoken.length > 0);
 });
 
+test("手机没有语音引擎时，一进听写页就自动改用内置人声，不用等点了播放才知道", async () => {
+  const ctx = bootListening({ source: "device", noSynth: true });
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+
+  assert.equal(ctx.win.VQSpeech.getDialogueSource(), "cloud",
+    "设备这条路不通就该把偏好纠正回来，否则每次打开都要白点一次");
+  assert.match(ctx.$("srcBtn").textContent, /人声/);
+
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 150));
+  const played = ctx.audios.filter((a) => a._played);
+  assert.equal(played.length, 1, "必须真的出声，实际创建了 " + ctx.audios.length + " 个音频元素");
+  assert.match(played[0].initSrc, /^\.\/audio\//, "走的是站内文件：" + played[0].initSrc);
+  assert.ok(!ctx.$("noVoice").classList.contains("show"), "有声音就不该再显示「没声音」警告");
+});
+
+test("设备语音读不出来时反过来兜底到人声（没装英文语音包的那种手机）", async () => {
+  const ctx = bootListening({ source: "device", speechFail: "language-unavailable" });
+  ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
+  ctx.$("playBig").click();
+  await new Promise((r) => setTimeout(r, 250));
+
+  assert.ok(ctx.spoken.length > 0, "应该先试过设备语音");
+  const played = ctx.audios.filter((a) => a._played);
+  assert.ok(played.length > 0, "设备失败后必须反过来改走人声，而不是显示没声音");
+  assert.ok(!ctx.$("noVoice").classList.contains("show"));
+});
+
 test("慢速对真实录音只做轻微拉伸，且不改音高", async () => {
   const ctx = bootListening();
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   ctx.$("slowBtn").click();            // 打开慢速会顺带播一次
   await new Promise((r) => setTimeout(r, 150));
-  const a = ctx.audios[ctx.audios.length - 1];
+  const played = ctx.audios.filter((x) => x._played);
+  assert.ok(played.length > 0, "慢速按钮应该当场重播一次");
+  const a = played[played.length - 1];
   assert.ok(a.playbackRate < 1, "慢速要真的慢：" + a.playbackRate);
   assert.ok(a.playbackRate >= 0.8, "真实录音拉伸过头会发糊，不能像合成那样压到 0.75：" + a.playbackRate);
   assert.equal(a.preservesPitch, true, "只慢不降调，否则听起来像磁带快没电");
@@ -1235,8 +1281,8 @@ test("声音来源面板把「要联网、句子外发」写在按钮旁边", as
   assert.ok(ctx.$("srcSheet").classList.contains("show"));
   const rows = ctx.doc.querySelectorAll("#srcList .vrow");
   assert.equal(rows.length, 2);
-  assert.match(rows[0].textContent, /云端人声/);
-  assert.match(rows[0].textContent, /联网|第三方/, "代价要写在选的地方，不能只藏在文档里");
+  assert.match(rows[0].textContent, /内置人声/);
+  assert.match(rows[0].textContent, /联网/, "代价要写在选的地方，不能只藏在文档里");
   assert.match(rows[1].textContent, /设备语音/);
 });
 

@@ -1,7 +1,7 @@
 /* Vocab Quest 离线缓存
    策略：页面导航走「网络优先，断网回落缓存」；静态资源走「缓存优先，顺手更新」。
    发布新版只需把 VERSION 加一，旧缓存会在 activate 时清掉。 */
-const VERSION = "vq-v15";
+const VERSION = "vq-v16";
 const ASSETS = [
   "./",
   "./index.html",

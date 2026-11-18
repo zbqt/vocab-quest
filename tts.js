@@ -589,10 +589,16 @@
     }
   }
 
-  /* ---------- 整句人声（云端） ----------
+  /* ---------- 整句人声（云端 / 站内 mp3） ----------
    * 设备自带的合成引擎底子太旧，"又平又硬"换断句也救不回来，只能换声源。
-   * 这一路直接播云端合成好的音频，代价是必须联网、而且台词会发给第三方。
-   * 放不出来就退回 speakDialogue（设备合成）—— 两条路都堵住才算真的没声音。
+   * 这一路直接播合成好的音频，代价是最初要联网取一次。
+   *
+   * 音源有两条，优先站内：
+   *   1. opts.file —— 站点里的 mp3（tools/fetch-audio.mjs 预渲染好的）。
+   *      同源、无防盗链、无跨域，手机上最稳，SW 缓存过一次就能离线听。
+   *   2. cue.url —— 第三方接口现取。只在站内文件缺失时用。
+   * 两条都放不出来才退回 speakDialogue（设备合成）——
+   * 但手机上设备合成往往是死的，所以顺序必须是「先本地、再云端、最后设备」。
    *
    * 连挂两次就别再让它每次卡 7 秒：本次会话直接跳过这一路，但**不改用户偏好**，
    * 下次打开页面还会重试（网络可能是临时的）。 */
@@ -622,7 +628,11 @@
   }
 
   /**
-   * 用云端人声念一句。
+   * 念一句台词（多段依次播）。
+   * @param {string} text
+   * @param {{speaker?:string, speed?:number, file?:string, onSegment?:Function,
+   *          onStart?:Function, onDone?:Function}} opts
+   *        file：这句对应的站内 mp3（同源）。给了就优先播它，缺了再打接口。
    * @returns {boolean} false = 这一路用不了，调用方应当改走设备合成
    */
   function speakCloud(text, opts) {
@@ -640,6 +650,8 @@
 
     var token = ++dlgToken;
     var rate = typeof opts.speed === "number" && opts.speed > 0 ? opts.speed : 1;
+    // 站内文件是「整句一个文件」，只有句子没被拆成多段时才可能对得上
+    var localFile = opts.file && plan.length === 1 ? opts.file : "";
     // 两句抢着说话比一句听不清更糟：先把设备合成和单词录音都停掉
     try { var synth = getSynth(); if (synth) synth.cancel(); } catch (e) {}
     stopAudio();
@@ -661,70 +673,90 @@
       if (i >= plan.length) { settled = true; killCloud(); finish(true); return; }
 
       var cue = plan[i];
-      // 预取过就直接播那一个：否则同一句会被请求两次，而且点下去还得再等一轮网络
-      var a = takePrefetched(cue.url);
-      if (!a) {
-        try { a = new global.Audio(cue.url); } catch (e) { bail("unsupported"); return; }
-        a.preload = "auto";
-      }
-      cloudAudio = a;
-      // 只改速度、不改音高。整句拉伸比单词拉伸宽容得多，但超过 0.85 也开始发糊
-      try { a.playbackRate = rate; a.preservesPitch = true; } catch (e) {}
       if (opts.onSegment) { try { opts.onSegment(i, plan.length); } catch (e) {} }
 
-      var done = false, started = false;
-      // 预算 = 加载余量 + 播放时长。只算加载的话，句子一长就会被自己的看门狗切断
-      // （英文朗读约 14 字符/秒，这里按 9 字符/秒估，留足余量当作安全网）
-      var budget = 3000 + Math.round(cue.text.length / 9 * 1000) + (i === 0 ? 4000 : 0);
-      var watch = setTimeout(function () {
-        if (done) return;
-        done = true;
-        if (started) { next(); return; }
-        bail(token === dlgToken ? "timeout" : "interrupted");
-      }, budget);
-      if (watch && typeof watch.unref === "function") watch.unref();
+      // 候选音源：站内文件在前，接口地址在后
+      var cands = localFile ? [localFile, cue.url] : [cue.url];
+      var started = false;
+      attempt(0);
 
-      a.addEventListener("playing", function () {
-        if (started) return;
-        started = true;
-        if (i === 0 && opts.onStart) { try { opts.onStart(); } catch (e) {} }
-      });
-      a.addEventListener("ended", function () {
-        if (done) return;
-        done = true;
-        clearTimeout(watch);
-        next();
-      });
-      // 有的环境（旧 Safari、部分安卓 WebView）不派发 ended，只派发 timeupdate。
-      // 光靠看门狗兜底会让"正在播"一直挂着，所以播到尾巴就自己收。
-      a.addEventListener("timeupdate", function () {
-        if (done) return;
-        var d = 0, c = 0;
-        try { d = a.duration || 0; c = a.currentTime || 0; } catch (e) {}
-        if (!d || c < d - 0.2) return;
-        done = true;
-        clearTimeout(watch);
-        next();
-      });
-      a.addEventListener("error", function () {
-        if (done) return;
-        done = true;
-        clearTimeout(watch);
-        // 已经出过声才断的，当这一段读完，别让整句哑掉
-        if (started) { next(); return; }
-        bail("blocked");
-      });
+      function attempt(ci) {
+        if (token !== dlgToken || settled) return;
+        if (ci >= cands.length) { bail(token === dlgToken ? "blocked" : "interrupted"); return; }
 
-      var p;
-      try { p = a.play(); } catch (e) { bail("blocked"); return; }
-      if (p && typeof p.catch === "function") {
-        p.catch(function (err) {
+        var src = cands[ci];
+        // 预取过就直接播那一个：否则同一句会被请求两次，而且点下去还得再等一轮网络
+        var a = takePrefetched(src);
+        if (!a) {
+          try { a = new global.Audio(src); } catch (e) { attempt(ci + 1); return; }
+          a.preload = "auto";
+        }
+        if (cloudAudio && cloudAudio !== a) { try { cloudAudio.pause(); } catch (e) {} }
+        cloudAudio = a;
+        // 只改速度、不改音高。整句拉伸比单词拉伸宽容得多，但超过 0.85 也开始发糊
+        try { a.playbackRate = rate; a.preservesPitch = true; } catch (e) {}
+
+        var done = false;
+        // 预算 = 加载余量 + 播放时长。只算加载的话，句子一长就会被自己的看门狗切断
+        // （英文朗读约 14 字符/秒，这里按 9 字符/秒估，留足余量当作安全网）
+        var budget = 3000 + Math.round(cue.text.length / 9 * 1000) + (i === 0 ? 4000 : 0);
+        var watch = setTimeout(function () {
+          if (done) return;
+          done = true;
+          if (started) { next(); return; }
+          if (token !== dlgToken) { bail("interrupted"); return; }
+          attempt(ci + 1);
+        }, budget);
+        if (watch && typeof watch.unref === "function") watch.unref();
+
+        // 换源重试时这几个监听还挂在旧元素上，靠 done 兜住，不会重复推进
+        function giveUpOrNext() {
+          if (started) { next(); return; }
+          attempt(ci + 1);
+        }
+
+        a.addEventListener("playing", function () {
+          if (started) return;
+          started = true;
+          if (i === 0 && opts.onStart) { try { opts.onStart(); } catch (e) {} }
+        });
+        a.addEventListener("ended", function () {
           if (done) return;
           done = true;
           clearTimeout(watch);
-          // NotAllowedError 是"缺一次点击"，不是设备不行，不该算到云端头上
-          bail(err && err.name === "NotAllowedError" ? "not-allowed" : "blocked");
+          next();
         });
+        // 有的环境（旧 Safari、部分安卓 WebView）不派发 ended，只派发 timeupdate。
+        // 光靠看门狗兜底会让"正在播"一直挂着，所以播到尾巴就自己收。
+        a.addEventListener("timeupdate", function () {
+          if (done) return;
+          var d = 0, c = 0;
+          try { d = a.duration || 0; c = a.currentTime || 0; } catch (e) {}
+          if (!d || c < d - 0.2) return;
+          done = true;
+          clearTimeout(watch);
+          next();
+        });
+        a.addEventListener("error", function () {
+          if (done) return;
+          done = true;
+          clearTimeout(watch);
+          // 已经出过声才断的，当这一段读完，别让整句哑掉
+          giveUpOrNext();
+        });
+
+        var p;
+        try { p = a.play(); } catch (e) { done = true; clearTimeout(watch); giveUpOrNext(); return; }
+        if (p && typeof p.catch === "function") {
+          p.catch(function (err) {
+            if (done) return;
+            done = true;
+            clearTimeout(watch);
+            // NotAllowedError 是"缺一次点击"，换源也没用，别把两条源都试一遍
+            if (err && err.name === "NotAllowedError") { bail("not-allowed"); return; }
+            giveUpOrNext();
+          });
+        }
       }
     }
 
@@ -739,7 +771,8 @@
 
   /* 预取整句音频：切到某一句就先把声音取下来。
    * 实测首次点播要等近 2 秒（请求 + 解码），预取之后基本是立刻出声 ——
-   * 听写本来就要反复听同一句，这 2 秒会重复很多次。 */
+   * 听写本来就要反复听同一句，这 2 秒会重复很多次。
+   * 站内 mp3 也一起预取：手机上同源文件虽然快，但第一次仍要读盘 + 解码。 */
   var prefetchCache = {}, prefetchKeys = [];
 
   // 取用预取好的元素：取走就删，一次预取只服务一次播放
@@ -756,13 +789,23 @@
   }
 
   function prefetchCloud(text, opts) {
+    opts = opts || {};
     if (getDialogueSource() !== "cloud") return false;
     var S = global.VQSentence;
     if (!S || typeof global.Audio !== "function") return false;
-    var cues = S.cues(text == null ? "" : text, { speaker: (opts || {}).speaker });
-    var got = false;
+    var cues = S.cues(text == null ? "" : text, { speaker: opts.speaker });
+    if (!cues.length) return false;
+
+    // 候选取法和 speakCloud 保持一致：站内文件在前，接口地址在后
+    var urls = [];
     for (var i = 0; i < cues.length; i++) {
-      var u = cues[i].url;
+      if (i === 0 && opts.file && cues.length === 1) urls.push(opts.file);
+      urls.push(cues[i].url);
+    }
+
+    var got = false;
+    for (var k = 0; k < urls.length; k++) {
+      var u = urls[k];
       if (prefetchCache[u]) continue;
       try {
         var a = new global.Audio(u);
@@ -897,6 +940,9 @@
       return setPref(VOICES[(i + 1) % VOICES.length].id);
     },
     get supported() { return supported(); },
+    // 设备合成这条路通不通。国产安卓浏览器常常连 speechSynthesis 都没有，
+    // 调用方据此决定"要不要一开始就用人声"，而不是等用户点了播放才发现没声音。
+    get deviceSupported() { return supported(); },
     get mode() { return pref() === "native" ? "native" : "audio"; },
     get isWeChat() { return /MicroMessenger/i.test(global.navigator ? global.navigator.userAgent : ""); }
   };
