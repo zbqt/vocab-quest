@@ -28,6 +28,9 @@ h1{font-size:24px;font-weight:800}
 .search{width:100%;padding:12px 16px;border-radius:13px;border:2px solid #e8ecff;background:#fff;font-size:15px;outline:none;font-family:inherit;transition:border-color .15s}
 .search:focus{border-color:#5b6cff}
 .result-tip{font-size:12px;color:#8a91a5;margin-top:8px;display:none}
+.toolbar .search{padding-right:104px}
+.voice-btn{position:absolute;right:0;top:10px;padding:9px 14px;border-radius:11px;border:1px solid #e5e7eb;background:#fff;color:#5b6cff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer}
+.voice-btn:hover{border-color:#6c7bff;background:#eef1ff}
 .units{padding-bottom:40px}
 details.unit{background:#fff;border:1px solid #eef0f6;border-radius:16px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 8px rgba(31,36,48,.04)}
 details.unit summary{list-style:none;cursor:pointer;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;user-select:none}
@@ -71,6 +74,7 @@ details[open] .u-arrow{transform:rotate(90deg)}
   </header>
   <div class="toolbar">
     <input class="search" id="search" type="search" placeholder="搜索单词或释义…">
+    <button type="button" class="voice-btn" id="voiceBtn" title="点一下换一种发音，立即试听">🎙 美音</button>
     <div class="result-tip" id="resultTip"></div>
   </div>
   <div class="units" id="units"></div>
@@ -171,6 +175,20 @@ search.addEventListener("input",()=>{
   else tip.style.display="none";
   emptyTip.style.display=kw&&hits===0?"block":"none";
 });
+</script>
+<script>
+/* 发音风格切换：美音 / 英音 / 系统合成，点一下换一种并立刻试听同一个词，好坏由耳朵定 */
+(function(){
+  var b=document.getElementById("voiceBtn");
+  if(!b||!window.VQSpeech)return;
+  function paint(){b.textContent="🎙 "+(VQSpeech.voiceName||"美音");}
+  paint();
+  b.onclick=function(){
+    VQSpeech.nextVoice();
+    paint();
+    speakWord("vocabulary",function(ok,reason){ if(ok===false) explainSpeechFailure(reason); });
+  };
+})();
 </script>
 <script>
 /* 离线缓存：只在安全上下文注册（https / localhost）；file:// 和局域网 http 静默跳过 */

@@ -11,7 +11,7 @@ const HTML = read("game.html");
 const INLINE = HTML.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
 const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "fsrs.js", "engine.js", "cloud-sync.js"];
 
-function boot(cat = "cet4") {
+function boot(cat = "cet4", opts = {}) {
   const dom = new JSDOM(HTML, {
     url: "http://localhost/game.html?cat=" + cat,
     runScripts: "outside-only",
@@ -33,6 +33,9 @@ function boot(cat = "cet4") {
   // 必须一次性 eval：`const VOCAB_CZ` 这类顶层常量在多次 eval 之间不共享
   win.eval(DATA_FILES.map(read).join("\n") + "\n" + INLINE +
     "\nwindow.__t={getS:()=>S,getG:()=>G,getP:()=>P,cfg:CFG};");
+
+  // 这些用例考的是"系统合成"通道的细节，先锁定到 native，别被默认的录音通道带跑
+  if (opts.voice) win.VQSpeech.setVoice(opts.voice);
 
   return { dom, win, doc, api: win.__t, $: (id) => doc.getElementById(id) };
 }
@@ -304,7 +307,27 @@ test("「这词我会」按钮：跳过当前题、推到 60 天后、结算如�
   assert.equal(ctx.$("resTitle").textContent, "今天的学习完成");
 });
 
-test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮复位", () => {
+test("默认优先真人录音：能放录音就不碰系统合成", () => {
+  const ctx = boot("cet4");
+  const urls = [];
+  let spoken = 0;
+  ctx.win.Audio = class {
+    constructor(u) { urls.push(u); }
+    play() { if (this.onplaying) this.onplaying(); if (this.onended) this.onended(); return Promise.resolve(); }
+    pause() {} removeAttribute() {} load() {}
+  };
+  ctx.win.speechSynthesis = {
+    speaking: false, pending: false, paused: false,
+    cancel() {}, getVoices() { return []; }, speak() { spoken++; }
+  };
+  ctx.win.showAudio("abandon", "");
+  ctx.win.playWord("abandon");
+  assert.equal(urls.length, 1, "默认应放词典录音");
+  assert.ok(/type=2/.test(urls[0]), "默认美音（type=2）：" + urls[0]);
+  assert.equal(spoken, 0, "录音能放就不该调系统合成（手机自带的英文合成音很机械）");
+});
+
+test("选「系统合成」时走原生 TTS：零外链、不创建 Audio、读完按钮复位", () => {
   // 静态检查：不许再有发音接口外链；实际会被加载的 src/href 必须是相对路径
   // （og:image 这类 meta content 只是分享卡片预览，不算页面加载的资源）
   for (const f of ["game.html", "words.html", "index.html"]) {
@@ -316,7 +339,7 @@ test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮�
     }
   }
 
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   let audioMade = 0, spoken = [];
   ctx.win.Audio = class { constructor() { audioMade++; } play() { return Promise.resolve(); } pause() {} };
   ctx.win.speechSynthesis = {
@@ -333,7 +356,7 @@ test("发音走浏览器原生 TTS：零外链、不创建 Audio、读完按钮�
   assert.equal(audioMade, 0, "不应创建 Audio 去拉远程音频");
   assert.equal(spoken.length, 1, "应调用一次语音合成");
   assert.equal(spoken[0].lang, "en-US");
-  assert.equal(spoken[0].rate, 0.75, "语速要比正常慢一档（用户反馈太快）");
+  assert.equal(spoken[0].rate, 0.8, "合成语速比正常慢一点（0.8）；录音则按原速，不快进也不拉伸");
   assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "读完按钮回到可重播状态");
   assert.equal(ctx.$("playBtn").disabled, false);
   assert.equal(ctx.$("audioStatus").textContent, "");
@@ -354,13 +377,13 @@ test("没有语音引擎的浏览器：自动改用在线发音，按钮能正�
   assert.doesNotThrow(() => ctx.win.playWord("abandon"), "拿不到原生朗读也不能抛错");
   assert.equal(urls.length, 1, "应改走在线音频，而不是干巴巴报不支持");
   assert.ok(/youdao/.test(urls[0]) && /abandon/.test(urls[0]), "音频地址要带上被点的词：" + urls[0]);
-  assert.equal(made[0].playbackRate, 0.75, "在线音频也要放慢，两种通道语速必须一致");
+  assert.equal(made[0].playbackRate, 1, "录音按原速播：时间拉伸会让短单词发金属味");
   assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "播放成功后按钮回到可重播状态");
   assert.equal(ctx.$("playBtn").disabled, false);
 });
 
 test("原生朗读失败时自动转在线发音，不让用户看到一句报错就结束", () => {
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   const urls = [];
   ctx.win.speechSynthesis = {
     speaking: false, pending: false, paused: false,
@@ -397,7 +420,7 @@ test("在线发音也失败：给出可读原因并允许重试，不卡在「�
 });
 
 test("正在朗读时点下一个词：先 cancel 再重发，新词不会被吞掉", async () => {
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   const spoken = [], calls = [];
   let speaking = false;
   ctx.win.speechSynthesis = {
@@ -421,7 +444,7 @@ test("正在朗读时点下一个词：先 cancel 再重发，新词不会被吞
 });
 
 test("有多个音色时优先选 en-US 本地音色", () => {
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   const picked = [];
   ctx.win.speechSynthesis = {
     speaking: false, pending: false, paused: false,
@@ -446,7 +469,7 @@ test("有多个音色时优先选 en-US 本地音色", () => {
 });
 
 test("引擎不派发 onstart 但在真的说话：不重试、不会播两遍", async () => {
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   const spoken = [];
   let speaking = false;
   ctx.win.speechSynthesis = {
@@ -465,7 +488,7 @@ test("引擎不派发 onstart 但在真的说话：不重试、不会播两遍",
 });
 
 test("合成被浏览器拦截（not-allowed）时给出可操作提示", () => {
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   ctx.win.speechSynthesis = {
     speaking: false, pending: false, paused: false,
     cancel() {},
@@ -479,7 +502,7 @@ test("合成被浏览器拦截（not-allowed）时给出可操作提示", () => 
 });
 
 test("答题后的自动朗读被拦时不打扰用户，喇叭仍可点", () => {
-  const ctx = boot("cet4");
+  const ctx = boot("cet4", { voice: "native" });
   ctx.win.speechSynthesis = {
     speaking: false, pending: false, paused: false,
     cancel() {},
@@ -637,4 +660,40 @@ test("周视图：点「这词我会」的跳过算题数，但不拉低正确�
   const meta = ctx.$("weekMeta").textContent;
   assert.match(meta, /3 题/, "跳过也进题数");
   assert.match(meta, /正确率 50%/, "只在真答的两题里算：1/2");
+});
+
+test("换发音风格：美音↔英音↔系统合成，选择会被记住", () => {
+  const ctx = boot("cet4");
+  const urls = [];
+  ctx.win.Audio = class {
+    constructor(u) { urls.push(u); }
+    play() { if (this.onplaying) this.onplaying(); if (this.onended) this.onended(); return Promise.resolve(); }
+    pause() {} removeAttribute() {} load() {}
+  };
+  assert.equal(ctx.win.VQSpeech.voice, "us", "默认美音");
+  ctx.win.showAudio("abandon", "");
+
+  ctx.win.VQSpeech.setVoice("uk");
+  ctx.win.playWord("abandon");
+  assert.ok(/type=1/.test(urls[urls.length - 1]), "选英音后应取 type=1：" + urls[urls.length - 1]);
+  assert.equal(ctx.win.localStorage.getItem("vq_voice_pref"), "uk", "选择要落到 localStorage");
+
+  ctx.win.VQSpeech.setVoice("native");
+  assert.equal(ctx.win.VQSpeech.voiceName, "系统合成");
+  assert.equal(ctx.win.VQSpeech.nextVoice(), "us", "循环切换要能绕回来");
+});
+
+test("预取：题目出现时先把录音下下来，但不发声", () => {
+  const ctx = boot("cet4");
+  const made = [];
+  ctx.win.Audio = class {
+    constructor(u) { this.src = u; this.played = false; made.push(this); }
+    play() { this.played = true; return Promise.resolve(); }
+    pause() {} removeAttribute() {} load() { this.loaded = true; }
+  };
+  ctx.win.VQSpeech.prefetch("abandon");
+  assert.equal(made.length, 1, "应预取一条录音");
+  assert.ok(/abandon/.test(made[0].src));
+  assert.equal(made[0].played, false, "预取只下载不播放");
+  assert.equal(made[0].loaded, true, "要真正触发下载");
 });

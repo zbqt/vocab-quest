@@ -132,10 +132,13 @@ if(window.VQCloud){
     var en=d.englishVoices||[];
     var tips=[];
 
-    if(d.mode==="audio"){
-      tips.push("这个浏览器<b>没有系统朗读能力</b>，已自动改用<b>在线发音</b>：点单词能响，但要联网。想离线发音就换 Chrome / Edge / Safari。");
-    }else if(d.supported&&en.length===0){
-      tips.push("系统里有朗读接口，但<b>一个英文音色都没装</b>，会在出声失败后自动转在线发音。彻底解决：手机设置里装一个英文语音包。");
+    if(d.pref!=="native"){
+      tips.push("当前用的是<b>词典真人录音</b>（"+(d.prefName||"美音")+"），比手机自带的合成音自然得多；断网时会自动退回系统合成。觉得不好听可以点下面的按钮换一种。");
+    }
+    if(!d.nativeSupported){
+      tips.push("这个浏览器<b>没有系统朗读能力</b>，所以断网时没声音。想离线也能读，换 Chrome / Edge / Safari。");
+    }else if(en.length===0){
+      tips.push("系统里有朗读接口，但<b>一个英文语音包都没装</b>——不影响在线录音，只是断网时读不了。");
     }
     if(!standalone){
       tips.push("<b>装到桌面</b>各家浏览器叫法不同，在菜单里找这几个字：<br>· Chrome / Edge：<b>安装应用</b> 或 添加到主屏幕<br>· 华为 / 小米 / vivo / OPPO 自带浏览器：<b>添加到桌面</b><br>· QQ / 夸克：菜单 → <b>添加到桌面</b><br>· iPhone Safari：底部分享 ⬆️ → <b>添加到主屏幕</b><br>如果菜单里一个都没有，说明这个浏览器不支持，换系统自带浏览器或 Chrome。");
@@ -145,12 +148,24 @@ if(window.VQCloud){
     box.innerHTML=
       "<div style=\"font-weight:800;color:#2c3448;margin-bottom:8px\">当前环境</div>"+
       line("浏览器",ua)+
-      line("发声方式",d.mode==="native"?"系统语音（可离线）":"浏览器无朗读能力 → 在线发音")+
-      line("英文音色",d.supported?(en.length?en.length+" 个":"0 个（没装语音包）"):"该浏览器不支持")+
+      line("发音风格",(d.prefName||"美音")+(d.pref==="native"?"（系统合成 · 可离线）":"（词典真人录音 · 需联网）"))+
+      line("系统合成",d.nativeSupported?(en.length?en.length+" 个英文音色":"有接口，但没装英文语音包"):"该浏览器不支持")+
       line("已装到桌面",standalone?"是":"否，现在还在浏览器标签里")+
       line("网络",navigator.onLine?"正常":"断网")+
       (tips.length?"<div style=\"font-weight:800;color:#2c3448;margin:12px 0 6px\">该怎么办</div>"+tips.map(function(t,i){return "<div style=\"padding:2px 0\">"+(i+1)+". "+t+"</div>";}).join(""):"")+
-      "<div style=\"margin-top:12px;display:flex;gap:8px;flex-wrap:wrap\"><button type=\"button\" id=\"helpCopy\" class=\"btn btn-ghost\" style=\"font-size:12px;padding:5px 10px\">复制浏览器信息</button><span id=\"helpCopyTip\" style=\"color:#5b6cff;font-size:12px\"></span></div>";
+      "<div style=\"margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center\"><button type=\"button\" id=\"voiceTry\" class=\"btn btn-ghost\" style=\"font-size:12px;padding:5px 10px\">🎙 换个声音试试</button><button type=\"button\" id=\"helpCopy\" class=\"btn btn-ghost\" style=\"font-size:12px;padding:5px 10px\">复制浏览器信息</button><span id=\"helpCopyTip\" style=\"color:#5b6cff;font-size:12px\"></span></div>";
+
+    var vt=document.getElementById("voiceTry");
+    if(vt&&window.VQSpeech){
+      vt.onclick=function(){
+        VQSpeech.nextVoice();
+        vt.textContent="🎙 正在试听："+VQSpeech.voiceName;
+        VQSpeech.speak("vocabulary",{onDone:function(ok,reason){
+          if(ok){vt.textContent="🎙 "+VQSpeech.voiceName+" · 再点换下一个";}
+          else{vt.textContent="🎙 "+VQSpeech.voiceName+"（没发声："+(VQSpeech.reasonText(reason))+"）";}
+        }});
+      };
+    }
 
     document.getElementById("helpCopy").onclick=function(){
       var tip=document.getElementById("helpCopyTip");

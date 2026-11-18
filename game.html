@@ -219,6 +219,7 @@ body.shuf .stars{color:#7c3aed}
         <div>
           <div class="logo-text">Vocab Quest<span style="font-size:12px;background:#eef1ff;color:#5b6cff;padding:2px 6px;border-radius:6px;margin-left:6px" id="stageTag">CET-4</span></div>
           <div class="logo-sub" id="logoSub">英语四级核心词闯关</div>
+          <button type="button" id="voiceBtn" style="margin-top:7px;padding:4px 11px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;color:#5b6cff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">🎙 美音</button>
         </div>
       </div>
       <div class="stats">
@@ -536,6 +537,21 @@ function playWord(en,opts){
     setState("🔊 重试",advice,false);
   });
 }
+/* 发音风格切换：点一下换一种音源并立刻试听 —— 好听不好听由人定，代码不猜 */
+function initVoiceBtn(){
+  const b=$("voiceBtn");
+  if(!b||!window.VQSpeech)return;
+  const paint=()=>{b.textContent="🎙 "+(VQSpeech.voiceName||"美音");};
+  paint();
+  b.onclick=(e)=>{
+    e.stopPropagation();
+    VQSpeech.nextVoice();
+    paint();
+    speakWord("vocabulary",(ok,reason)=>{
+      if(ok===false)toast(VQSpeech.reasonText(reason));
+    });
+  };
+}
 function showAudio(en,ph){
   $("audioRow").style.display="flex";
   $("phonetic").textContent=ph?"/"+ph+"/":"";
@@ -761,6 +777,8 @@ function start(u,l,mode){
 function renderQ(){
   const q=G.qs[G.idx];
   if(!q){finish(G.correct>=G.passNeed);return;}
+  // 题目一出现就预取这个词的录音，点喇叭时不用等下载
+  if(q.en&&window.VQSpeech&&VQSpeech.prefetch)VQSpeech.prefetch(q.en);
   const T=G.qs.length;
   G.qStart=Date.now();
   $("cnWord").textContent=q.prompt;
@@ -1135,6 +1153,7 @@ $("stageTag").textContent={cz:"初中",gz:"高中",cet4:"CET-4",c6:"CET-6"}[CAT]
 $("logoSub").textContent=CFG.name+"词汇闯关";
 $("footTip").textContent=CFG.name+"词库 · 词义匹配 + 拼写 + 语法 · 每关覆盖全部单词";
 
+initVoiceBtn();
 renderHome();
 
 /* ================= 云服务：账号登录 + 存档备份（本机存档仍是主存档） ================= */

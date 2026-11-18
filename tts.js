@@ -21,15 +21,11 @@
   }
   function supported() { return !!(getSynth() && hasCtor()); }
 
-  /* ---------- 在线发音兜底 ----------
+  /* ---------- 录音通道 ----------
    * 国产安卓浏览器（vivo / 小米 / QQ / 夸克 等）大多没有 speechSynthesis，
-   * 国产安卓机也普遍没装英文语音包。光靠原生 TTS，这些机器就是死的。
-   * 所以备一条 mp3 通道：拿不到原生能力时自动改用在线音频，用户无感。
-   * 缺点是要联网；好处是「能不能响」不再取决于浏览器和系统语音包。 */
-  var AUDIO_SOURCES = [
-    function (w) { return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&type=2"; }, // 美音
-    function (w) { return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&type=1"; }  // 英音
-  ];
+   * 国产安卓机也普遍没装英文语音包；就算有，手机自带的英文合成音也普遍机械。
+   * 所以默认走有道词典的真人录音（单词级别是真人发音，不是合成），
+   * 失败或断网时才退回系统合成。音源顺序见 audioSources()。 */
   var currentAudio = null;
 
   function stopAudio() {
@@ -117,11 +113,52 @@
     try { if (s.paused) s.resume(); } catch (e) {}
   }
 
-  /* 语速：两条通道共用一个值，改这里就行。
-   * 0.75 比正常慢一档。背单词听得清比听得快重要，用户反馈「太快」后从 0.85 降下来。
-   * 注意：原生通道用 utterance.rate，mp3 通道用 audio.playbackRate，语义一致但实现不同，
-   * 忘记同步就会变成「换了个浏览器，语速突然变快」。 */
-  var SPEED = 0.75;
+  /* 语速只作用于「系统合成」。
+   * 真人录音**绝不时间拉伸** —— 短单词做 0.75x 变速（哪怕保音调）会拉出明显的金属味、
+   * 水声，比原速难听得多。有道那条录音本身是 48kHz/66kbps、1.4 秒的慢速清晰发音，
+   * 已经是"背单词该有的速度"，再拉就是负优化。 */
+  var SPEED = 0.8;
+
+  /* 发音风格：us = 美音录音，uk = 英音录音，native = 系统合成（离线可用但普遍机械）。
+   * 默认 us —— 国产手机自带的英文合成音大多很机械，真人录音优先。 */
+  var PREF_KEY = "vq_voice_pref";
+  var VOICES = [
+    { id: "us", name: "美音", src: "type=2", native: false },
+    { id: "uk", name: "英音", src: "type=1", native: false },
+    { id: "native", name: "系统合成", src: "", native: true }
+  ];
+
+  function pref() {
+    var v = null;
+    try { v = global.localStorage && global.localStorage.getItem(PREF_KEY); } catch (e) {}
+    for (var i = 0; i < VOICES.length; i++) if (VOICES[i].id === v) return v;
+    return "us";
+  }
+  function setPref(id) {
+    for (var i = 0; i < VOICES.length; i++) {
+      if (VOICES[i].id === id) {
+        try { global.localStorage.setItem(PREF_KEY, id); } catch (e) {}
+        return id;
+      }
+    }
+    return pref();
+  }
+  function prefName() {
+    var p = pref();
+    for (var i = 0; i < VOICES.length; i++) if (VOICES[i].id === p) return VOICES[i].name;
+    return "美音";
+  }
+  // 按偏好排出录音源顺序：选了英音就把英音放前面，另一种音作备用
+  function audioSources() {
+    var p = pref();
+    var order = p === "uk" ? ["uk", "us"] : ["us", "uk"];
+    return order.map(function (id) {
+      var v = VOICES.filter(function (x) { return x.id === id; })[0];
+      return function (w) {
+        return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&" + v.src;
+      };
+    });
+  }
 
   function buildUtterance(text, voice) {
     var u = new global.SpeechSynthesisUtterance(text);
@@ -133,32 +170,31 @@
     return u;
   }
 
-  /* 走 mp3 通道。多个源依次重试，任何一个成功就算成功。 */
-  function speakViaAudio(text, hooks, finish) {
+  /* 走录音通道。多个音源依次重试，任何一个成功就算成功。
+   * onFail：两条路都不通时交给上层（可能还有系统合成可用）。 */
+  function speakViaAudio(text, hooks, finish, onFail) {
+    var sources = audioSources();
     var word = String(text).trim();
     if (!word) { finish(false, "empty"); return false; }
-    if (typeof global.Audio !== "function") { finish(false, "unsupported"); return false; }
+    if (typeof global.Audio !== "function") { fail("unsupported"); return false; }
 
     stopAudio();
     var idx = 0;
     playNext();
     return true;
 
+    function fail(reason) { if (onFail) onFail(reason); else finish(false, reason); }
+
     function playNext() {
-      if (idx >= AUDIO_SOURCES.length) { finish(false, "audio-unavailable"); return; }
+      if (idx >= sources.length) { fail("audio-unavailable"); return; }
       var a;
-      try { a = new global.Audio(AUDIO_SOURCES[idx++](word)); }
-      catch (e) { finish(false, "audio-unavailable"); return; }
+      try { a = new global.Audio(sources[idx++](word)); }
+      catch (e) { fail("audio-unavailable"); return; }
 
       currentAudio = a;
       a.preload = "auto";
-      // 放慢但尽量不变调（各浏览器前缀不同，都设一遍）
-      try {
-        a.preservesPitch = true;
-        a.mozPreservesPitch = true;
-        a.webkitPreservesPitch = true;
-      } catch (e) {}
-      try { a.defaultPlaybackRate = SPEED; a.playbackRate = SPEED; } catch (e) {}
+      // 录音按原速播，不做任何时间拉伸（拉伸会把短词拉出金属味）
+      try { a.defaultPlaybackRate = 1; a.playbackRate = 1; } catch (e) {}
       var retried = false;
       var stall = null;
 
@@ -191,6 +227,7 @@
           clearStall();
           // 手势不足时换源也没用，直接说清楚，别让用户干等
           if (err && err.name === "NotAllowedError") { finish(false, "not-allowed"); return; }
+
           if (retried) return;
           retried = true;
           playNext();
@@ -219,9 +256,25 @@
     });
 
     if (!text || !String(text).trim()) { finish(false, "empty"); return false; }
-    // 浏览器压根没有朗读能力（国产安卓浏览器常见）：直接走音频通道
-    if (!supported()) return speakViaAudio(text, hooks, finish);
 
+    // 两条通道按用户选的风格排先后：选「系统合成」就先合成，否则先放真人录音
+    var order = pref() === "native" ? ["native", "audio"] : ["audio", "native"];
+    var stage = 0;
+    next("");
+
+    function next(reason) {
+      while (stage < order.length) {
+        var ch = order[stage++];
+        if (ch === "native" && supported()) { nativeSpeak(text, hooks, finish, next); return; }
+        if (ch === "audio") { speakViaAudio(text, hooks, finish, next); return; }
+      }
+      finish(false, reason || "unsupported");
+    }
+    return true;
+  }
+
+  /* 系统合成通道。onFail 用于"一个字都没读出来"时让上一层换路 */
+  function nativeSpeak(text, hooks, finish, onFail) {
     bindVoices();
     var s = getSynth();
     var voice = pickVoice();
@@ -242,11 +295,11 @@
 
     function start() {
       var live = getSynth();
-      if (!live) { speakViaAudio(text, hooks, finish); return; }
+      if (!live) { onFail("unsupported"); return; }
 
       var u;
       try { u = buildUtterance(text, voice); }
-      catch (e) { speakViaAudio(text, hooks, finish); return; }
+      catch (e) { onFail("synthesis-failed"); return; }
 
       var started = false, settled = false;
       var watchdog = null, grace = null, giveUp = null;
@@ -263,11 +316,8 @@
         if (settled) return;
         settled = true;
         clearTimers();
-        // 一个字都没读出来 + 属于可兜底的原因 → 改用在线音频，用户不必知道
-        if (!ok && !started && canFallback(reason)) {
-          speakViaAudio(text, hooks, finish);
-          return;
-        }
+        // 一个字都没读出来 + 属于可兜底的原因 → 交给下一层（录音或系统合成的另一条）
+        if (!ok && !started && canFallback(reason)) { onFail(reason); return; }
         finish(ok, reason);
       }
 
@@ -318,6 +368,19 @@
   }
 
   /* ---------- 诊断（"为什么没声音"找原因） ---------- */
+  /* 预取录音：题目一出现就把音频下到缓存里，点喇叭时不用等那 300ms */
+  function prefetch(text) {
+    if (pref() === "native") return;
+    var w = String(text || "").trim();
+    if (!w || typeof global.Audio !== "function") return;
+    try {
+      var a = new global.Audio(audioSources()[0](w));
+      a.preload = "auto";
+      a.muted = true;
+      if (a.load) a.load();
+    } catch (e) {}
+  }
+
   function diagnose() {
     var s = getSynth();
     var list = [];
@@ -329,7 +392,10 @@
       if (String(list[i].lang || "").toLowerCase().indexOf("en") === 0) english.push(list[i]);
     }
     return {
-      mode: supported() ? "native" : "audio",
+      mode: pref() === "native" ? "native" : "audio",
+      pref: pref(),
+      prefName: prefName(),
+      nativeSupported: supported(),
       ua: String((global.navigator && global.navigator.userAgent) || ""),
       supported: supported(),
       totalVoices: list.length,
@@ -362,8 +428,20 @@
     diagnose: diagnose,
     reasonText: reasonText,
     pickVoice: pickVoice,
+    voices: VOICES.map(function (v) { return { id: v.id, name: v.name }; }),
+    prefetch: prefetch,
+    setVoice: setPref,
+    get voice() { return pref(); },
+    get voiceName() { return prefName(); },
+    // 下一个风格（用来做"点一下换个声音"）
+    nextVoice: function () {
+      var cur = pref();
+      var i = 0;
+      for (var k = 0; k < VOICES.length; k++) if (VOICES[k].id === cur) i = k;
+      return setPref(VOICES[(i + 1) % VOICES.length].id);
+    },
     get supported() { return supported(); },
-    get mode() { return supported() ? "native" : "audio"; },
+    get mode() { return pref() === "native" ? "native" : "audio"; },
     get isWeChat() { return /MicroMessenger/i.test(global.navigator ? global.navigator.userAgent : ""); }
   };
 })(typeof window !== "undefined" ? window : this);
