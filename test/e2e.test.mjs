@@ -400,8 +400,9 @@ test("默认优先真人录音：能放录音就不碰系统合成", () => {
   };
   ctx.win.showAudio("abandon", "");
   ctx.win.playWord("abandon");
-  assert.equal(urls.length, 1, "默认应放词典录音");
-  assert.ok(/type=2/.test(urls[0]), "默认美音（type=2）：" + urls[0]);
+  assert.equal(urls.length, 1, "默认应放录音");
+  // 站内文件优先：同源、无防盗链、播过一次就能离线听
+  assert.equal(urls[0], "audio/w/ab/abandon.mp3", "默认应先用站内录音：" + urls[0]);
   assert.equal(spoken, 0, "录音能放就不该调系统合成（手机自带的英文合成音很机械）");
 });
 
@@ -454,8 +455,9 @@ test("没有语音引擎的浏览器：自动改用在线发音，按钮能正�
   };
   ctx.win.showAudio("abandon", "");
   assert.doesNotThrow(() => ctx.win.playWord("abandon"), "拿不到原生朗读也不能抛错");
-  assert.equal(urls.length, 1, "应改走在线音频，而不是干巴巴报不支持");
-  assert.ok(/youdao/.test(urls[0]) && /abandon/.test(urls[0]), "音频地址要带上被点的词：" + urls[0]);
+  assert.equal(urls.length, 1, "应改走录音，而不是干巴巴报不支持");
+  // 站内文件（同源）是第一路；没有这个文件才轮到在线接口
+  assert.ok(/abandon/.test(urls[0]), "音频地址要带上被点的词：" + urls[0]);
   assert.equal(made[0].playbackRate, 1, "录音按原速播：时间拉伸会让短单词发金属味");
   assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "播放成功后按钮回到可重播状态");
   assert.equal(ctx.$("playBtn").disabled, false);

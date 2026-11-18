@@ -33,6 +33,8 @@ const MIME = {
 };
 
 const server = http.createServer((req, res) => {
+  // LOG=1 时打一行访问日志：验证「发音到底请求的是站内文件还是外链」只能靠它
+  if (process.env.LOG) console.log(new Date().toISOString().slice(11, 19), req.method, req.url);
   let urlPath;
   try {
     urlPath = decodeURIComponent(new URL(req.url, "http://placeholder").pathname);

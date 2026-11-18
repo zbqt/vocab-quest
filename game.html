@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
-<link rel="stylesheet" href="./ui.css?v=0.14.0">
+<link rel="stylesheet" href="./ui.css?v=0.15.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
@@ -479,17 +479,17 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="tts.js?v=0.14.0"></script>
-<script src="vocab_cz.js?v=0.14.0"></script>
-<script src="vocab_gz.js?v=0.14.0"></script>
-<script src="vocab.js?v=0.14.0"></script>
-<script src="vocab_c6.js?v=0.14.0"></script>
-<script src="grammar.js?v=0.14.0"></script>
-<script src="dictation.js?v=0.14.0"></script>
-<script src="zh-match.js?v=0.14.0"></script>
-<script src="fsrs.js?v=0.14.0"></script>
-<script src="engine.js?v=0.14.0"></script>
-<script src="cloud-sync.js?v=0.14.0"></script>
+<script src="tts.js?v=0.15.0"></script>
+<script src="vocab_cz.js?v=0.15.0"></script>
+<script src="vocab_gz.js?v=0.15.0"></script>
+<script src="vocab.js?v=0.15.0"></script>
+<script src="vocab_c6.js?v=0.15.0"></script>
+<script src="grammar.js?v=0.15.0"></script>
+<script src="dictation.js?v=0.15.0"></script>
+<script src="zh-match.js?v=0.15.0"></script>
+<script src="fsrs.js?v=0.15.0"></script>
+<script src="engine.js?v=0.15.0"></script>
+<script src="cloud-sync.js?v=0.15.0"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -616,6 +616,14 @@ function preloadWord(en){
   if(!en)return;
   // 提前把英文音色挑出来；部分安卓要等 voices 加载完才肯出声
   if(window.VQSpeech){try{VQSpeech.pickVoice();}catch(e){}}
+}
+/* 进一组题就把这组词的站内录音预热到本地。
+   离线能不能听，靠的不是"用户点过多少次播放"，而是进来时就把这一组的音频存下来。
+   一个关卡 12~15 个词、每个 4.5KB，一次约 60KB —— 相当于一张小图。 */
+function warmAudio(words){
+  if(!window.VQSpeech||!VQSpeech.prefetchMany)return;
+  const list=(words||[]).map(w=>Array.isArray(w)?w[0]:w).filter(Boolean);
+  try{VQSpeech.prefetchMany(list);}catch(e){}
 }
 function playWord(en,opts){
   opts=opts||{};
@@ -1025,6 +1033,7 @@ function launchListening(words,pool,uId){
   $("modeTag").className="mode-tag review";
   $("levelTitle").textContent=uId>0?(S.shufMode?`乱序第${uId}段 · 听力`:`第${uId}单元 · 听力`):"全库听力";
   $("gameHint").textContent=`${sess.total} 题全是${zhT==="writeZh"?"听音写汉语":"听音辨汉语"} · 不扣体力 · 每次随机抽词`;
+  warmAudio(words);
   show("gameView");renderQ();
 }
 
@@ -1055,8 +1064,9 @@ function start(u,l,mode){
   // 未必能一眼认出英文 —— 而四六级阅读考的正是后者。
   // 复习里也不撤，它不依赖设备、不需要新考法，就是最基础的认词。
   const lookZhEvery=4;
+  const words=shuffle(lp.slice());   // 本关全部 12 词，每词必考一次
   const sess=VQ.buildSession({
-    words:shuffle(lp.slice()),          // 本关全部 12 词，每词必考一次
+    words:words,
     grammar:mode==="review"?[]:grammarPick(gN),
     grammarN:gN, spellEvery:spellEvery, listenEvery:listenEvery, lookZhEvery:lookZhEvery, mode:mode, pool:pool
   });
@@ -1076,6 +1086,7 @@ function start(u,l,mode){
   const hasLookZh=sess.questions.some(q=>q.type==="lookZh");
   $("gameHint").textContent=(mode==="play"?`本关 ${sess.total} 题 · 答对 ${sess.passNeed} 题通关 · 全对得 3 星`
     :mode==="review"?"巩固本关全部单词，不计星、不扣体力":"完整考核，错题进入错词区")+(hasListen?" · 🎧 含听音题":"")+(hasLookZh?" · 👀 含英译中":"");
+  warmAudio(words);
   show("gameView");
   renderQ();
 }
@@ -1095,7 +1106,7 @@ function degradeListen(){
     q.prompt=q.en;
     $("cnWord").textContent=q.en;
     $("enemyLabel").textContent="✍️ 看英文写汉语（本题听音未成立）";
-    $("qTitle").textContent="这台设备放不出声音，本题改成看英文写汉语，且不计入听力判定";
+    $("qTitle").textContent="放不出声音（离线且本地没这个词的录音，或设备没装英文语音），本题改成看英文写汉语，且不计入听力判定";
     showAudio(q.en,q.ph);
     $("audioStatus").textContent="设备无声 · 本题未计入听力判定";
     G.degraded=(G.degraded||0)+1;
@@ -1113,14 +1124,14 @@ function degradeListen(){
     q.prompt=q.en;
     $("cnWord").textContent=q.en;
     $("enemyLabel").textContent="👾 看英文选中文（本题听音未成立）";
-    $("qTitle").textContent="这台设备放不出声音，本题改成看英文选中文，且不计入听力判定";
+    $("qTitle").textContent="放不出声音（离线且本地没这个词的录音，或设备没装英文语音），本题改成看英文选中文，且不计入听力判定";
     showAudio(q.en,q.ph);   // 词形已经露了，音标不算泄题
   }else{
     q.type="match";
     q.prompt=q.zh;
     $("cnWord").textContent=q.zh;
     $("enemyLabel").textContent="👾 选择正确的英文单词（本题听音未成立）";
-    $("qTitle").textContent="这台设备放不出声音，本题改成看中文选单词，且不计入听力判定";
+    $("qTitle").textContent="放不出声音（离线且本地没这个词的录音，或设备没装英文语音），本题改成看中文选单词，且不计入听力判定";
   }
   $("audioStatus").textContent="设备无声 · 本题未计入听力判定";
   G.degraded=(G.degraded||0)+1;
@@ -1542,6 +1553,7 @@ function openDaily(reviewOnly){
   $("gameHint").textContent=(wordTypes.some(t=>t!=="lookZh")
       ?"新词先认词义，复习轮考拼写 / 英译中 / 听音"
       :"新词先认词义（看英文选中文，最轻的一步）")+" · 不扣体力 · 答错当天会再出现";
+  warmAudio(words);
   show("gameView");renderQ();
 }
 $("heroBtn").onclick=()=>openDaily();
@@ -1560,6 +1572,7 @@ function openRescue(){
   const ws=shuffle(rescueWords()).slice(0,RESCUE_MAX).map(w=>WORD_INDEX[w]).filter(Boolean);
   if(!ws.length){toast("目前没有需要重练的错词");return;}
   const sess=VQ.buildSession({words:ws,wordTypes:ws.map(()=>"match"),grammar:[],grammarN:0,spellEvery:0,mode:"review",pool:BANK});
+  warmAudio(ws);
   G={
     u:1,l:0,mode:"review",daily:false,rescue:true,shuf:false,src:ws.map(w=>w[0]),
     qs:sess.questions,passNeed:sess.passNeed,

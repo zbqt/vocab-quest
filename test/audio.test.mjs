@@ -56,6 +56,8 @@ test("audio 目录里没有多余的音频（改了题库要顺手清掉旧的�
 
   const found = [];
   for (const dir of fs.readdirSync(AUDIO)) {
+    // w/ 是单词录音（tools/fetch-word-audio.mjs 生成），不归对话题库管
+    if (dir === "w") continue;
     const full = path.join(AUDIO, dir);
     if (!fs.statSync(full).isDirectory()) continue;
     for (const f of fs.readdirSync(full)) found.push(path.join(dir, f));

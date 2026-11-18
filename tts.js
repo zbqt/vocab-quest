@@ -148,16 +148,58 @@
     for (var i = 0; i < VOICES.length; i++) if (VOICES[i].id === p) return VOICES[i].name;
     return "美音";
   }
-  // 按偏好排出录音源顺序：选了英音就把英音放前面，另一种音作备用
+  /* ---------- 站内录音（离线可用的那一路） ----------
+   * 以前单词发音是**热链**有道的接口：每点一次喇叭就联网一次。断网就必然失败，
+   * 只能退回设备合成 —— 而国产安卓机大多没装英文语音包，等于离线是哑的。
+   *
+   * 现在同一批录音由 tools/fetch-word-audio.mjs 预渲染到 audio/w/<前两字母>/<词>.mp3，
+   * 同源、无防盗链、service worker 缓存优先。播过一次的词，以后断网也在。
+   * 代价是这 6 千多个文件**不进**预缓存（全量 28MB，首次安装不该下这么多），
+   * 只按需下载：谁播过谁就在本地。
+   *
+   * 只有纯字母的词才有本地文件；词组、带连字符的词条走在线那一路。 */
+  var LOCAL_DIR = "audio/w/";
+
+  function localSrc(word) {
+    var w = String(word == null ? "" : word).trim().toLowerCase();
+    // 与生成脚本的规则必须一致：两边都只认 2~15 个纯小写字母
+    if (!/^[a-z]{2,15}$/.test(w)) return "";
+    return LOCAL_DIR + w.slice(0, 2) + "/" + w + ".mp3";
+  }
+
+  // 离线判断只用来决定「还要不要浪费一轮去请求外链」。
+  // online 事件不可靠（连着 WiFi 但没有出口也会报 true），所以它只做"提前跳过"，不做"禁止"。
+  function online() {
+    try { return global.navigator ? global.navigator.onLine !== false : true; } catch (e) { return true; }
+  }
+
+  function remoteSrc(id) {
+    var v = VOICES.filter(function (x) { return x.id === id; })[0];
+    return function (w) {
+      return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&" + v.src;
+    };
+  }
+
+  /* 按偏好排出录音源顺序。
+   * 选了美音（默认）：站内 → 在线美音 → 在线英音。
+   * 选了英音：在线英音打头（用户明确要英音，站内只有美音录音，不能顶替），
+   *          离线时才落到站内美音 —— 有声音比口音正宗重要。
+   * 离线：外链一个都不排，省掉两次注定失败的请求（每次要等 4 秒看门狗）。 */
   function audioSources() {
     var p = pref();
-    var order = p === "uk" ? ["uk", "us"] : ["us", "uk"];
-    return order.map(function (id) {
-      var v = VOICES.filter(function (x) { return x.id === id; })[0];
-      return function (w) {
-        return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&" + v.src;
-      };
-    });
+    var net = online();
+    var list = [];
+    var local = function (w) { return localSrc(w); };
+
+    if (p === "uk") {
+      if (net) list.push(remoteSrc("uk"));
+      list.push(local);
+      if (net) list.push(remoteSrc("us"));
+    } else {
+      list.push(local);
+      if (net) { list.push(remoteSrc("us")); list.push(remoteSrc("uk")); }
+    }
+    return list;
   }
 
   function buildUtterance(text, voice) {
@@ -173,10 +215,17 @@
   /* 走录音通道。多个音源依次重试，任何一个成功就算成功。
    * onFail：两条路都不通时交给上层（可能还有系统合成可用）。 */
   function speakViaAudio(text, hooks, finish, onFail) {
-    var sources = audioSources();
     var word = String(text).trim();
     if (!word) { finish(false, "empty"); return false; }
     if (typeof global.Audio !== "function") { fail("unsupported"); return false; }
+
+    // 每一路音源都先算出地址，算不出地址的（比如词组没有站内文件）直接不排进候选，
+    // 否则会在一个空 src 上浪费一次重试 —— 手机上就是多等 4 秒。
+    var sources = audioSources(), cands = [];
+    for (var s = 0; s < sources.length; s++) {
+      var u = sources[s](word);
+      if (u) cands.push(u);
+    }
 
     stopAudio();
     var idx = 0;
@@ -186,9 +235,9 @@
     function fail(reason) { if (onFail) onFail(reason); else finish(false, reason); }
 
     function playNext() {
-      if (idx >= sources.length) { fail("audio-unavailable"); return; }
+      if (idx >= cands.length) { fail("audio-unavailable"); return; }
       var a;
-      try { a = new global.Audio(sources[idx++](word)); }
+      try { a = new global.Audio(cands[idx++]); }
       catch (e) { fail("audio-unavailable"); return; }
 
       currentAudio = a;
@@ -861,12 +910,47 @@
     if (pref() === "native") return;
     var w = String(text || "").trim();
     if (!w || typeof global.Audio !== "function") return;
+    // 第一路可能算不出地址（词组没有站内文件、离线时不排外链），别拿空串去建 <audio>
+    var src = audioSources()[0](w);
+    if (!src) return;
     try {
-      var a = new global.Audio(audioSources()[0](w));
+      var a = new global.Audio(src);
       a.preload = "auto";
       a.muted = true;
       if (a.load) a.load();
     } catch (e) {}
+  }
+
+  /* 批量预取：进来一组题（一个关卡 / 一次复习）就把这组的词音频存到本地。
+   * 用 fetch() 而不是 <audio>：目的只是让 service worker 把文件落到 Cache Storage，
+   * 不需要解码，几十个词也不会在内存里挂一堆媒体元素。
+   * 这是「离线能听」的真正保障 —— 光靠用户一个个点播放，没点过的词离线还是哑的。 */
+  function prefetchMany(words, opts) {
+    opts = opts || {};
+    if (pref() === "native" || !online()) return 0;
+    var list = [], seen = {};
+    for (var i = 0; i < (words || []).length; i++) {
+      var s = localSrc(words[i]);
+      if (s && !seen[s]) { seen[s] = 1; list.push(s); }
+    }
+    if (!list.length) return 0;
+
+    var k = 0, left = opts.max || list.length;
+    if (left > list.length) left = list.length;
+
+    function next() {
+      if (k >= left) { if (opts.onDone) { try { opts.onDone(k); } catch (e) {} } return; }
+      var url = list[k++];
+      var step = function () { next(); };
+      try {
+        fetch(url)
+          .then(function (r) { return r && r.ok ? r.arrayBuffer() : null; })
+          .then(step, step);
+      } catch (e) { step(); }
+    }
+    // 2 路并发：够快，又不至于一进关卡就抢走听力题本身的带宽
+    next(); next();
+    return left;
   }
 
   function diagnose() {
@@ -928,6 +1012,9 @@
     pickVoice: pickVoice,
     voices: VOICES.map(function (v) { return { id: v.id, name: v.name }; }),
     prefetch: prefetch,
+    prefetchMany: prefetchMany,
+    // 站内录音地址（纯函数，便于单测）：词组/非法词条返回空串，表示只能走在线那一路
+    localSrc: localSrc,
     prefetchCloud: prefetchCloud,
     setVoice: setPref,
     get voice() { return pref(); },
