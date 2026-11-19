@@ -161,3 +161,27 @@ test("页面引用的本地脚本都在离线预缓存清单里（漏一个就�
   }
   assert.deepEqual([...new Set(missing)], [], "这些资源离线拿不到：\n" + missing.join("\n"));
 });
+
+/* ---------- 换版本时的「新页面 + 旧脚本」错配 ----------
+   导航网络优先、静态资源缓存优先，所以刚发版那一下必然是「新 HTML + 旧 JS」。
+   旧 JS 里没有新页面要调的函数，结果是整块区域空白，用户看不到任何报错 ——
+   在电脑上刷两次就自愈，在手机上就是「为什么我没有这个选项」。 */
+
+test("四个页面都用同一份 sw-client.js 注册离线缓存", () => {
+  for (const f of ["index.html", "game.html", "words.html", "listening.html"]) {
+    const src = read(f);
+    assert.match(src, /<script src="sw-client\.js\?v=/, f + " 没引 sw-client.js");
+    assert.doesNotMatch(src, /serviceWorker\.register/, f + " 还在自己注册，和 sw-client.js 会打架");
+  }
+  const client = read("sw-client.js");
+  assert.match(client, /addEventListener\("controllerchange"/, "换版本后要能自愈");
+  assert.match(client, /sessionStorage/, "自愈刷新必须防死循环");
+  assert.match(client, /update\(\)/, "要主动 update，别让旧 sw.js 靠 HTTP 缓存赖着");
+});
+
+test("首页离线面板：挂载函数缺失时不留空白块", () => {
+  const src = read("index.html");
+  assert.match(src, /typeof VQOffline\.mountPack==="function"/, "要先判函数在不在");
+  assert.match(src, /packReload/, "缺脚本时要给刷新按钮");
+  assert.match(src, /这一块的面板还是旧版脚本/, "要说明原因，不是静默隐身");
+});

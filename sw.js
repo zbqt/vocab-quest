@@ -9,7 +9,7 @@
  *
  * 发布新版只需把 VERSION 加一。
  */
-const VERSION = "vq-v26";
+const VERSION = "vq-v27";
 const AUDIO_CACHE = "vq-audio-v1";
 
 const ASSETS = [
@@ -24,6 +24,7 @@ const ASSETS = [
   "./dictation.js",
   "./zh-match.js",
   "./offline-pack.js",
+  "./sw-client.js",
   "./dialogues.js",
   "./engine.js",
   "./fsrs.js",

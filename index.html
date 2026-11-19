@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
-<link rel="stylesheet" href="./ui.css?v=0.17.0">
+<link rel="stylesheet" href="./ui.css?v=0.17.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
@@ -423,10 +423,10 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
   </footer>
 </div>
 
-<script src="stats.js?v=0.17.0"></script>
-<script src="tts.js?v=0.17.0"></script>
-<script src="offline-pack.js?v=0.17.0"></script>
-<script src="cloud-sync.js?v=0.17.0"></script>
+<script src="stats.js?v=0.17.1"></script>
+<script src="tts.js?v=0.17.1"></script>
+<script src="offline-pack.js?v=0.17.1"></script>
+<script src="cloud-sync.js?v=0.17.1"></script>
 <script>
 /* ============ 1. 词库规模：只读统计文件（0.4KB），不下载 700KB 词库 ============ */
 (function(){
@@ -539,10 +539,22 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
 </script>
 <script>
 /* ============ 3. 离线发音包：入口就在首页，不用先钻进某一本书 ============
-   之前只有闯关页有这个卡片，用户找不到「下载」在哪 —— 位置比功能更容易劝退。 */
+   之前只有闯关页有这个卡片，用户找不到「下载」在哪 —— 位置比功能更容易劝退。
+
+   为什么还要判 mountPack 存不存在：刚发新版那一下，页面（网络优先）是新的，
+   脚本（缓存优先）可能还是旧的 —— 于是这里拿到的 VQOffline 没有 mountPack，
+   整块区域变成空白，而且不报错给用户看（电脑上刷过两次就正常，手机上就是空白）。
+   不装作没事：说清楚，并给一个能自己修好它的按钮。 */
 (function(){
   var host=document.getElementById("offlinePack");
-  if(host&&window.VQOffline)VQOffline.mountPack(host);
+  if(!host)return;
+  if(window.VQOffline&&typeof VQOffline.mountPack==="function"){VQOffline.mountPack(host);return;}
+
+  host.className="vq-pack";
+  host.innerHTML='<div class="vq-pack-main"><p class="vq-pack-fallback">这一块的面板还是旧版脚本，刷新一次就会出现在这里。</p></div>'+
+    '<button class="vq-pack-btn" type="button" id="packReload">刷新页面</button>';
+  var b=document.getElementById("packReload");
+  if(b)b.onclick=function(){location.reload();};
 })();
 </script>
 <script>
@@ -614,11 +626,6 @@ if(window.VQCloud){
   };
 })();
 </script>
-<script>
-/* ============ 6. 离线缓存：只在安全上下文注册（https / localhost）；file:// 与局域网 http 静默跳过 ============ */
-if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
-  addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
-}
-</script>
+<script src="sw-client.js?v=0.17.1"></script>
 </body>
 </html>
