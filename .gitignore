@@ -6,6 +6,11 @@ tools/.sdk-probe.js
 .DS_Store
 tools/push-via-api.mjs
 
+# 音频不进仓库（见 NOTICE）：词库是公开词书整理的，录音是词典生成的音频，
+# 公开分发整批录音不属于「个人学习」，所以这里只放生成脚本，不放文件。
+# 本机想要：npm run gen:words（单词 6,369 个） / npm run gen:audio（整句 74 句）
+audio/
+
 # WorkBuddy 本地元数据（发布用的 appId 记录，不进仓库）
 .workbuddy/
 .wbapp_*.genie
