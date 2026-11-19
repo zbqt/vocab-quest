@@ -142,3 +142,22 @@ test("manifest 的快捷入口都指向真实页面", () => {
     assert.ok(exists(icon.src.replace(/^\.\//, "")), "图标不存在：" + icon.src);
   }
 });
+
+test("页面引用的本地脚本都在离线预缓存清单里（漏一个就是断网白屏）", () => {
+  const sw = read("sw.js");
+  const block = (sw.match(/const ASSETS = \[([\s\S]*?)\];/) || [, ""])[1];
+  assert.ok(block.length > 100, "没解析到 ASSETS");
+  const cached = new Set([...block.matchAll(/"\.\/([^"?]+)"/g)].map((m) => m[1]));
+
+  const missing = [];
+  for (const f of ["game.html", "words.html", "index.html", "listening.html"]) {
+    const src = read(f);
+    for (const m of src.matchAll(/<(?:script|link)[^>]*?(?:src|href)\s*=\s*"([^"]+)"/g)) {
+      const u = m[1].split("?")[0].replace(/^\.\//, "");
+      // 只看本地实在文件：外链、锚点、以及页面之间的跳转链接不在预缓存范围内
+      if (/^(https?:)?\/\//.test(u) || u.startsWith("#") || u.endsWith(".html")) continue;
+      if (!cached.has(u)) missing.push(f + " → " + u);
+    }
+  }
+  assert.deepEqual([...new Set(missing)], [], "这些资源离线拿不到：\n" + missing.join("\n"));
+});

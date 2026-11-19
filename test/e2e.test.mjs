@@ -9,7 +9,7 @@ const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (f) => fs.readFileSync(path.join(DIR, f), "utf8");
 const HTML = read("game.html");
 const INLINE = HTML.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/)[1];
-const DATA_FILES = ["tts.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "dictation.js", "zh-match.js", "fsrs.js", "engine.js", "cloud-sync.js"];
+const DATA_FILES = ["tts.js", "offline-pack.js", "vocab_cz.js", "vocab_gz.js", "vocab.js", "vocab_c6.js", "grammar.js", "dictation.js", "zh-match.js", "fsrs.js", "engine.js", "cloud-sync.js"];
 
 function boot(cat = "cet4", opts = {}) {
   const dom = new JSDOM(HTML, {
@@ -29,6 +29,8 @@ function boot(cat = "cet4", opts = {}) {
   win.speechSynthesis = { cancel() {}, speak() {} };
   win.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
   win.confirm = () => true;
+  // 离线发音包要用 Cache API；不传就当作"设备不支持"，卡片自己隐藏
+  if (opts.caches) win.caches = opts.caches;
 
   // 必须一次性 eval：`const VOCAB_CZ` 这类顶层常量在多次 eval 之间不共享
   win.eval(DATA_FILES.map(read).join("\n") + "\n" + INLINE +
@@ -436,7 +438,8 @@ test("选「系统合成」时走原生 TTS：零外链、不创建 Audio、读�
   assert.equal(audioMade, 0, "不应创建 Audio 去拉远程音频");
   assert.equal(spoken.length, 1, "应调用一次语音合成");
   assert.equal(spoken[0].lang, "en-US");
-  assert.equal(spoken[0].rate, 0.8, "合成语速比正常慢一点（0.8）；录音则按原速，不快进也不拉伸");
+  // 曾压到 0.8「让机械音听清」，代价是录音正常速度、退化后突然慢 20%，用户体感是卡
+  assert.equal(spoken[0].rate, 1, "合成语速应与真人录音一致（1.0），不能比录音慢");
   assert.equal(ctx.$("playBtn").textContent, "🔊 重新播放", "读完按钮回到可重播状态");
   assert.equal(ctx.$("playBtn").disabled, false);
   assert.equal(ctx.$("audioStatus").textContent, "");
@@ -1640,4 +1643,72 @@ test("云端模式下气口圆点只留一个：整句是一段音频，没有�
   const ctx = bootListening();
   ctx.doc.querySelectorAll("#dlgList .dlg")[0].click();
   assert.equal(ctx.doc.querySelectorAll("#dots .dot").length, 1);
+});
+
+/* ---------- 离线发音包：首页卡片与下载联动 ---------- */
+
+function fakeCacheStore(preload = []) {
+  const store = new Map();
+  const abs = (u) => new URL(u, "http://localhost/").href;
+  for (const u of preload) store.set(abs(u), {});
+  return {
+    store,
+    open: async () => ({
+      keys: async () => [...store.keys()].map((u) => ({ url: u })),
+      put: async (u) => { store.set(abs(u), {}); },
+      delete: async (r) => store.delete(r.url),
+    }),
+  };
+}
+
+test("离线发音包：本机已存过一部分时，卡片报出真实数量而不是说谎", async () => {
+  const store = fakeCacheStore(["audio/w/ab/able.mp3", "audio/w/te/tell.mp3"]);
+  const ctx = boot("cet4", { caches: store });
+  await new Promise((r) => setTimeout(r, 20));
+
+  const card = ctx.$("packCard");
+  assert.ok(card, "首页应该有离线发音包入口");
+  assert.notEqual(card.style.display, "none", "支持缓存时不该隐藏");
+  assert.match(ctx.$("packMeta").textContent, /本机已有 2 个词/, "实际文案：" + ctx.$("packMeta").textContent);
+  assert.equal(ctx.$("packBtn").textContent, "下载");
+});
+
+test("离线发音包：设备不支持缓存时整块隐藏，不留一个点了没反应的按钮", async () => {
+  const ctx = boot("cet4");           // 不给 caches
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(ctx.$("packCard").style.display, "none");
+});
+
+test("离线发音包：点下载会真的去取清单和音频，只补缺的", async () => {
+  const store = fakeCacheStore(["audio/w/ab/able.mp3"]);
+  const ctx = boot("cet4", { caches: store });
+
+  const manifestHit = [];
+  const audioHit = [];
+  ctx.win.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf("audio-manifest.json") >= 0) {
+      manifestHit.push(u);
+      return { ok: true, status: 200, json: async () => ({ count: 3, words: ["able", "tell", "shortage"] }) };
+    }
+    audioHit.push(u);
+    return { ok: true, status: 200 };
+  };
+
+  await new Promise((r) => setTimeout(r, 20));
+  ctx.$("packBtn").click();
+  // 下载是并发的，等它跑完
+  for (let i = 0; i < 40 && ctx.$("packBtn").textContent === "停止"; i++) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  assert.equal(manifestHit.length, 1, "应该只读一次清单");
+  assert.ok(!audioHit.some((u) => u.indexOf("able") >= 0), "已经存过的词不该重下");
+  assert.deepEqual(
+    audioHit.map((u) => u.split("/").pop()).sort(),
+    ["shortage.mp3", "tell.mp3"],
+    "应该只下缺的两个"
+  );
+  assert.equal(ctx.$("packBtn").textContent, "删除", "下完应变成可删除");
+  assert.match(ctx.$("packMeta").textContent, /断网也能听任何词/);
 });

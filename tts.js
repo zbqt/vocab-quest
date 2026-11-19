@@ -115,9 +115,17 @@
 
   /* 语速只作用于「系统合成」。
    * 真人录音**绝不时间拉伸** —— 短单词做 0.75x 变速（哪怕保音调）会拉出明显的金属味、
-   * 水声，比原速难听得多。有道那条录音本身是 48kHz/66kbps、1.4 秒的慢速清晰发音，
-   * 已经是"背单词该有的速度"，再拉就是负优化。 */
-  var SPEED = 0.8;
+   * 水声，比原速难听得多。有道那条录音本身是慢速清晰发音，已经是"背单词该有的速度"。
+   *
+   * 所以这里必须是 1。原来是 0.8，本意是让机械音听清，实际后果是：
+   * 有录音时是正常速度、退化成系统合成时突然慢 20% —— 两条音源速度割裂，
+   * 用户听到的是"怎么突然变慢了"，而不是"变清楚了"。统一到原速。 */
+  var SPEED = 1;
+
+  /* 本次会话里系统合成已经彻底失败过（一个音都没读出来）。
+   * 设备没装英文语音包时，每题都要白等 2.2 秒才降级，连着几题就是"怎么这么卡"。
+   * 记住之后直接跳过这一路，刷新页面即重置 —— 装了语音包的人刷新就能恢复。 */
+  var nativeDead = false;
 
   /* 发音风格：us = 美音录音，uk = 英音录音，native = 系统合成（离线可用但普遍机械）。
    * 默认 us —— 国产手机自带的英文合成音大多很机械，真人录音优先。 */
@@ -137,6 +145,7 @@
   function setPref(id) {
     for (var i = 0; i < VOICES.length; i++) {
       if (VOICES[i].id === id) {
+        nativeDead = false;   // 换了音色就重新试一次：用户可能刚装好系统语音包
         try { global.localStorage.setItem(PREF_KEY, id); } catch (e) {}
         return id;
       }
@@ -314,7 +323,7 @@
     function next(reason) {
       while (stage < order.length) {
         var ch = order[stage++];
-        if (ch === "native" && supported()) { nativeSpeak(text, hooks, finish, next); return; }
+        if (ch === "native" && supported() && !nativeDead) { nativeSpeak(text, hooks, finish, next); return; }
         if (ch === "audio") { speakViaAudio(text, hooks, finish, next); return; }
       }
       finish(false, reason || "unsupported");
@@ -366,7 +375,12 @@
         settled = true;
         clearTimers();
         // 一个字都没读出来 + 属于可兜底的原因 → 交给下一层（录音或系统合成的另一条）
-        if (!ok && !started && canFallback(reason)) { onFail(reason); return; }
+        if (!ok && !started && canFallback(reason)) {
+          // 手势不足（not-allowed）不算设备没语音，那是一次性上下文问题，别记死
+          if (reason !== "unsupported") nativeDead = true;
+          onFail(reason);
+          return;
+        }
         finish(ok, reason);
       }
 

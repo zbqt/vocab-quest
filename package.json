@@ -1,6 +1,6 @@
 {
   "name": "vocab-quest",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "description": "考试词汇记忆引擎：FSRS-5 调度 + 纯静态站 + 浏览器原生 TTS",
   "main": "engine.js",
@@ -31,10 +31,12 @@
     "ui.css",
     "robots.txt",
     "sitemap.xml",
-    "404.html"
+    "404.html",
+    "offline-pack.js",
+    "audio-manifest.json"
   ],
   "scripts": {
-    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/prosody.test.mjs test/sentence.test.mjs test/audio.test.mjs test/zh-match.test.mjs test/dictation.test.mjs test/cloud.test.mjs test/e2e.test.mjs test/quality.test.mjs test/tts-offline.test.mjs",
+    "test": "node --test test/fsrs.test.mjs test/engine.test.mjs test/words.test.mjs test/prosody.test.mjs test/sentence.test.mjs test/audio.test.mjs test/zh-match.test.mjs test/dictation.test.mjs test/cloud.test.mjs test/e2e.test.mjs test/quality.test.mjs test/tts-offline.test.mjs test/offline-pack.test.mjs",
     "serve": "node tools/serve.mjs",
     "audit:data": "node tools/audit.mjs .",
     "fill:phonetic": "node tools/fill-phonetic.mjs .",
@@ -42,7 +44,8 @@
     "gen:stats": "node tools/gen-stats.mjs .",
     "gen:audio": "node tools/fetch-audio.mjs",
     "start": "node tools/serve.mjs",
-    "gen:words": "node tools/fetch-word-audio.mjs"
+    "gen:words": "node tools/fetch-word-audio.mjs",
+    "gen:manifest": "node tools/gen-audio-manifest.mjs"
   },
   "devDependencies": {
     "jsdom": "^31.0.1"

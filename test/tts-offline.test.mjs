@@ -161,3 +161,71 @@ test("断网打开带参数的深层链接：导航按路径匹配，不许掉�
   assert.match(nav, /caches\s*\n?\s*\.match\(req, \{ ignoreSearch: true \}\)/,
     "导航回落必须 ignoreSearch，否则断网时深层链接会掉到首页");
 });
+
+/* 设备没装英文语音包时，每题都要白等 2.2 秒（600ms 看门狗 + 1500ms 复查）才降级。
+ * 连着做十几题就是"怎么这么卡"。失败一次就在本次会话里记住，别再试。 */
+function stubSilentSynth() {
+  const spoken = [];
+  const synth = {
+    speaking: false, pending: false, paused: false,
+    cancel() {},
+    getVoices() { return []; },
+    speak(u) {
+      spoken.push(u);
+      // 一个音都读不出来：直接报错，模拟"设备没有英文语音"
+      if (u.onerror) u.onerror({ error: "synthesis-failed" });
+    },
+  };
+  return { synth, spoken };
+}
+
+async function speakTwice(silent) {
+  const { FakeAudio } = stubAudio();
+  const prev = {
+    Audio: MOD.Audio, navigator: MOD.navigator,
+    speechSynthesis: MOD.speechSynthesis, SpeechSynthesisUtterance: MOD.SpeechSynthesisUtterance,
+  };
+  MOD.Audio = FakeAudio;
+  MOD.navigator = { onLine: false };
+  MOD.speechSynthesis = silent.synth;
+  MOD.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+
+  try {
+    S.speak("abandon", {});
+    await new Promise((r) => setTimeout(r, 60));
+    S.speak("abandon", {});
+    await new Promise((r) => setTimeout(r, 60));
+  } finally {
+    Object.assign(MOD, prev);
+  }
+  return silent.spoken.length;
+}
+
+test("系统合成彻底放不出声后，同一会话不再重复尝试", async () => {
+  S.setVoice("us");  // 重置上次会话留下的判死标记
+  const silent = stubSilentSynth();
+  const n = await speakTwice(silent);
+  assert.equal(n, 1, "第二次不该再等一轮系统合成，应该直接放弃并降级（实际尝试次数：" + n + "）");
+});
+
+test("换音色会重新尝试系统合成（用户可能刚装好语音包）", async () => {
+  const silent = stubSilentSynth();
+  await speakTwice(silent);          // 先让它判死
+  const before = silent.spoken.length;
+
+  S.setVoice("uk");                   // 换音色 → 复活
+  S.setVoice("us");
+  const { FakeAudio } = stubAudio();
+  const prev = {
+    Audio: MOD.Audio, navigator: MOD.navigator,
+    speechSynthesis: MOD.speechSynthesis, SpeechSynthesisUtterance: MOD.SpeechSynthesisUtterance,
+  };
+  MOD.Audio = FakeAudio; MOD.navigator = { onLine: false }; MOD.speechSynthesis = silent.synth;
+  // ctor 也必须挂回来：没了它 supported() 直接为 false，native 那条路压根不会被排进来
+  MOD.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+  try {
+    S.speak("abandon", {});
+    await new Promise((r) => setTimeout(r, 60));
+  } finally { Object.assign(MOD, prev); }
+  assert.ok(silent.spoken.length > before, "换过音色后应该重新给别人一次机会");
+});
