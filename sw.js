@@ -9,7 +9,7 @@
  *
  * 发布新版只需把 VERSION 加一。
  */
-const VERSION = "vq-v28";
+const VERSION = "vq-v29";
 const AUDIO_CACHE = "vq-audio-v1";
 
 const ASSETS = [
@@ -124,6 +124,55 @@ const SENTENCE_AUDIO = [
   "./audio/flight/6.mp3"
 ];
 
+/* 打开缓存这件事不必每次请求都做一遍。手机上 open() 是一次异步的索引查找，
+ * 点一下喇叭就要为它等几十毫秒 —— 而一个 4.5KB 的录音根本不需要这个开销。
+ * 把 Promise 记下来复用，activate 时清掉（换版本后要重新指向新分区）。 */
+let shellP = null, audioP = null;
+function shellCache() { return shellP || (shellP = caches.open(VERSION)); }
+function audioCache() { return audioP || (audioP = caches.open(AUDIO_CACHE)); }
+
+/* 媒体元素（尤其 iOS / 安卓 Chrome）几乎一定会带 Range 头来取音频。
+ * 以前一律把整个 200 响应丢回去：Chrome 能凑合播，iOS 会当作"不支持拖动"
+ * 反复重试甚至直接判定加载失败 —— 表现是点了没声音、或者要等很久。
+ * 这里按 Range 切一刀回 206，让媒体栈一次就拿到它要的字节。
+ * 顺带的好处：以后要拖动进度条也有真正的支持。 */
+function partialResponse(req, res) {
+  const range = req.headers.get("range");
+  if (!range) return Promise.resolve(res);
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
+  if (!m) return Promise.resolve(res);
+  const hasStart = m[1] !== "", hasEnd = m[2] !== "";
+  if (!hasStart && !hasEnd) return Promise.resolve(res);
+
+  return res
+    .clone()
+    .arrayBuffer()
+    .then((ab) => {
+      const size = ab.byteLength;
+      let start = hasStart ? parseInt(m[1], 10) : size - parseInt(m[2], 10);
+      let end = hasStart ? (hasEnd ? parseInt(m[2], 10) : size - 1) : size - 1;
+      if (start < 0) start = 0;
+      if (end >= size || end < 0) end = size - 1;
+      if (start > end || start >= size) {
+        return new Response(null, {
+          status: 416,
+          statusText: "Range Not Satisfiable",
+          headers: { "Content-Range": "bytes */" + size }
+        });
+      }
+      const chunk = ab.slice(start, end + 1);
+      const headers = new Headers(res.headers);
+      headers.set("Content-Range", "bytes " + start + "-" + end + "/" + size);
+      headers.set("Content-Length", String(chunk.byteLength));
+      headers.set("Accept-Ranges", "bytes");
+      // 缓存里存的是解压后的字节，别让浏览器再按压缩格式解一次
+      headers.delete("Content-Encoding");
+      headers.delete("Content-Length-Original");
+      return new Response(chunk, { status: 206, statusText: "Partial Content", headers });
+    })
+    .catch(() => res);
+}
+
 self.addEventListener("install", (e) => {
   e.waitUntil(
     (async () => {
@@ -145,6 +194,10 @@ self.addEventListener("activate", (e) => {
         // 只留当前壳 + 录音缓存；录音缓存跨版本保留
         Promise.all(keys.filter((k) => k !== VERSION && k !== AUDIO_CACHE).map((k) => caches.delete(k)))
       )
+      .then(() => {
+        shellP = null;   // 换版本了，别再用旧分区的句柄
+        audioP = null;
+      })
       .then(() => self.clients.claim())
   );
 });
@@ -158,19 +211,26 @@ self.addEventListener("fetch", (e) => {
   // 录音：缓存优先，命中就直接给。断网时这是唯一还活着的音源。
   if (url.pathname.indexOf("/audio/") >= 0) {
     e.respondWith(
-      caches.open(AUDIO_CACHE).then((c) =>
-        c.match(req).then(
-          (hit) =>
-            hit ||
-            fetch(req)
-              .then((res) => {
-                // 只存完整的 200：半截响应存进去，以后每次播都是坏的
-                if (res.ok && res.status === 200 && res.type === "basic") {
-                  c.put(req, res.clone()).catch(() => {});
-                }
-                return res;
-              })
-        )
+      audioCache().then((c) =>
+        c.match(req).then((hit) => {
+          if (hit) return partialResponse(req, hit);
+          /* 没命中就去取。注意这里**故意不带 Range**：
+           * 媒体元素几乎是带 Range 来的，照着它的头去取只会拿回 206 半截 ——
+           * 半截不能存（存进去以后每次播都是坏的），于是这个文件永远进不了本机，
+           * 下次断网照样要等网络失败。
+           * 所以按「完整文件」取一次（一个词 4.5KB），存进缓存，再在本地切片给客户端。 */
+          const full = new Request(req.url, {
+            method: "GET",
+            credentials: req.credentials || "same-origin"
+          });
+          return fetch(full).then((res) => {
+            // 只存完整的 200：半截响应存进去，以后每次播都是坏的
+            if (res.ok && res.status === 200 && res.type === "basic") {
+              c.put(req, res.clone()).catch(() => {});
+            }
+            return partialResponse(req, res);
+          });
+        })
       )
     );
     return;
@@ -181,34 +241,39 @@ self.addEventListener("fetch", (e) => {
       fetch(req)
         .then((res) => {
           const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put(req, copy)).catch(() => {});
+          shellCache().then((c) => c.put(req, copy)).catch(() => {});
           return res;
         })
         .catch(() =>
           // ignoreSearch 是必须的：页面地址常带 ?cat=cet4&act=daily 这类参数，
           // 而预缓存里存的是不带参数的 ./game.html。按完整 URL 匹配必然落空，
           // 结果是断网打开深层链接会掉到首页 —— 看起来像"离线打不开这一页"。
-          caches
-            .match(req, { ignoreSearch: true })
-            .then((hit) => hit || caches.match("./index.html"))
+          shellCache()
+            .then((c) => c.match(req, { ignoreSearch: true }))
+            .then((hit) => hit || shellCache().then((c) => c.match("./index.html")))
         )
     );
     return;
   }
 
   e.respondWith(
-    // ignoreSearch：页面引用脚本时会带 ?v=0.17.0 这类版本串，而预缓存里存的是不带串的地址。
-    // 不忽略 query 的话，带串的请求永远命中不了缓存 —— 断网时整页脚本都拿不到。
-    // 静态资源不需要按 query 区分版本，VERSION 已经区分了。
-    caches.match(req, { ignoreSearch: true }).then((hit) => {
-      if (hit) return hit;
-      return fetch(req).then((res) => {
-        if (res.ok && res.type === "basic") {
-          const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put(req, copy)).catch(() => {});
-        }
-        return res;
-      });
-    })
+    // 只查「壳」这一个分区，不查 caches.match() 的全部。
+    // 录音分区里有 6 千多个条目，一次全局查找要把它们也过一遍 ——
+    // 每个脚本、每张图都付这个成本，手机上就是整页慢半拍。
+    shellCache()
+      // ignoreSearch：页面引用脚本时会带 ?v=0.17.0 这类版本串，而预缓存里存的是不带串的地址。
+      // 不忽略 query 的话，带串的请求永远命中不了缓存 —— 断网时整页脚本都拿不到。
+      // 静态资源不需要按 query 区分版本，VERSION 已经区分了。
+      .then((c) => c.match(req, { ignoreSearch: true }))
+      .then((hit) => {
+        if (hit) return hit;
+        return fetch(req).then((res) => {
+          if (res.ok && res.type === "basic") {
+            const copy = res.clone();
+            shellCache().then((c) => c.put(req, copy)).catch(() => {});
+          }
+          return res;
+        });
+      })
   );
 });

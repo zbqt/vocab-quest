@@ -185,3 +185,27 @@ test("首页离线面板：挂载函数缺失时不留空白块", () => {
   assert.match(src, /packReload/, "缺脚本时要给刷新按钮");
   assert.match(src, /这一块的面板还是旧版脚本/, "要说明原因，不是静默隐身");
 });
+
+/* ---------- 「点一下多久才出声」----------
+   离线时点一个词要等好几秒：每次点击都在重走「唤醒 SW → 打开缓存 → 读盘 →
+   建媒体解码器 → 解 mp3」。这组守的是「这活不该等到手指按下才开始」——
+   进一组题时词就已经定了，那时就该解完。 */
+
+test("进一组题时就把这组词解进内存，不是等用户点播放", () => {
+  const game = read("game.html");
+  const warm = (game.match(/function warmAudio\(words\)\{[\s\S]*?\n\}/) || [""])[0];
+  assert.ok(warm, "没找到 warmAudio");
+  assert.match(warm, /preloadWords/, "warmAudio 里没有预解码：点播放还是要现解一遍");
+  assert.match(warm, /prefetchMany/, "预取到本机不能丢（离线能不能听靠它）");
+
+  const tts = read("tts.js");
+  assert.match(tts, /preloadWords:\s*preloadWords/, "tts.js 没导出 preloadWords");
+  assert.match(tts, /function preloadWords/, "tts.js 没实现 preloadWords");
+});
+
+test("预解码是加速，不是替代：拿不到就必须还能走媒体元素", () => {
+  const tts = read("tts.js");
+  // playBuffer 返回 false（没解到 / 没有 Web Audio）时，必须继续往下走原来那条路
+  assert.match(tts, /if \(playBuffer\(word, hooks, finish, viaElement\)\) return true;\s*\n\s*viaElement\(\);/,
+    "内存那一路接不了的时候要退回 <audio>，否则没解到 = 没声音");
+});

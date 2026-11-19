@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
-<link rel="stylesheet" href="./ui.css?v=0.17.2">
+<link rel="stylesheet" href="./ui.css?v=0.18.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
@@ -483,18 +483,18 @@ body.shuf .listen-row .level-id{color:#f59e0b}
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="tts.js?v=0.17.2"></script>
-<script src="vocab_cz.js?v=0.17.2"></script>
-<script src="vocab_gz.js?v=0.17.2"></script>
-<script src="vocab.js?v=0.17.2"></script>
-<script src="vocab_c6.js?v=0.17.2"></script>
-<script src="grammar.js?v=0.17.2"></script>
-<script src="dictation.js?v=0.17.2"></script>
-<script src="zh-match.js?v=0.17.2"></script>
-<script src="offline-pack.js?v=0.17.2"></script>
-<script src="fsrs.js?v=0.17.2"></script>
-<script src="engine.js?v=0.17.2"></script>
-<script src="cloud-sync.js?v=0.17.2"></script>
+<script src="tts.js?v=0.18.0"></script>
+<script src="vocab_cz.js?v=0.18.0"></script>
+<script src="vocab_gz.js?v=0.18.0"></script>
+<script src="vocab.js?v=0.18.0"></script>
+<script src="vocab_c6.js?v=0.18.0"></script>
+<script src="grammar.js?v=0.18.0"></script>
+<script src="dictation.js?v=0.18.0"></script>
+<script src="zh-match.js?v=0.18.0"></script>
+<script src="offline-pack.js?v=0.18.0"></script>
+<script src="fsrs.js?v=0.18.0"></script>
+<script src="engine.js?v=0.18.0"></script>
+<script src="cloud-sync.js?v=0.18.0"></script>
 <script>
 /* ================= 阶段配置 ================= */
 const VOCAB_ALIASES={cz:VOCAB_CZ,gz:VOCAB_GZ,cet4:VOCAB,c6:VOCAB_C6};
@@ -622,13 +622,17 @@ function preloadWord(en){
   // 提前把英文音色挑出来；部分安卓要等 voices 加载完才肯出声
   if(window.VQSpeech){try{VQSpeech.pickVoice();}catch(e){}}
 }
-/* 进一组题就把这组词的站内录音预热到本地。
-   离线能不能听，靠的不是"用户点过多少次播放"，而是进来时就把这一组的音频存下来。
-   一个关卡 12~15 个词、每个 4.5KB，一次约 60KB —— 相当于一张小图。 */
+/* 进一组题就把这组词的站内录音准备好。两件事分开看：
+   ① 落到本机（离线能不能听）—— prefetchMany；
+   ② 解进内存（点下去多久才响）—— preloadWords。
+   第②件是「离线点一下要等好久」的解药：这组词是提前知道的，解码就该在
+   「题目出现时」做完，而不是等手指按下喇叭才开始。 */
 function warmAudio(words){
-  if(!window.VQSpeech||!VQSpeech.prefetchMany)return;
+  if(!window.VQSpeech)return;
   const list=(words||[]).map(w=>Array.isArray(w)?w[0]:w).filter(Boolean);
-  try{VQSpeech.prefetchMany(list);}catch(e){}
+  // 先解码（顺带就把文件取下来落了本机缓存），再补取剩下的 —— 顺序反了会重复请求一遍
+  try{if(VQSpeech.preloadWords)VQSpeech.preloadWords(list);}catch(e){}
+  try{if(VQSpeech.prefetchMany)VQSpeech.prefetchMany(list);}catch(e){}
 }
 function playWord(en,opts){
   opts=opts||{};
@@ -1734,6 +1738,6 @@ if(window.VQCloud){
   addEventListener("pagehide",()=>{try{VQCloud.flush();}catch(e){}});
 }
 </script>
-<script src="sw-client.js?v=0.17.2"></script>
+<script src="sw-client.js?v=0.18.0"></script>
 </body>
 </html>

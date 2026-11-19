@@ -158,8 +158,12 @@ test("断网打开带参数的深层链接：导航按路径匹配，不许掉�
   assert.ok(nav.length > 100, "没解析到导航分支");
   // 预缓存的页面是不带参数的 ./game.html，而地址常带 ?cat=cet4&act=daily。
   // 按完整 URL 匹配必然落空 → 用户断网打开这一页会看到首页，像"离线打不开"。
-  assert.match(nav, /caches\s*\n?\s*\.match\(req, \{ ignoreSearch: true \}\)/,
+  assert.match(nav, /\.match\(req, \{ ignoreSearch: true \}\)/,
     "导航回落必须 ignoreSearch，否则断网时深层链接会掉到首页");
+  // 顺手守一条性能：caches.match() 会遍历所有分区，而录音分区有 6 千多条。
+  // 页面请求只该查「壳」这一个分区。
+  assert.doesNotMatch(nav, /caches\s*\n?\s*\.match\(/,
+    "别用 caches.match 查全部缓存：录音分区有 6 千多条，每次查都要过一遍");
 });
 
 /* 设备没装英文语音包时，每题都要白等 2.2 秒（600ms 看门狗 + 1500ms 复查）才降级。

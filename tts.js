@@ -29,6 +29,7 @@
   var currentAudio = null;
 
   function stopAudio() {
+    stopBuffer();   // 内存那一路和媒体元素那一路都可能是"正在响"的那个
     if (!currentAudio) return;
     try {
       currentAudio.pause();
@@ -176,6 +177,244 @@
     return LOCAL_DIR + w.slice(0, 2) + "/" + w + ".mp3";
   }
 
+  /* ---------- 预解码通道：让「点一下」变成「立刻响」 ----------
+   *
+   * 走 <audio> 播一个词，点下去之后浏览器要做完这一串才出声：
+   *   唤醒 Service Worker → 打开缓存 → 在 6 千条索引里查 → 读盘 → 建媒体解码器 → 解 mp3
+   * 在线时这一串还能被网络掩盖一部分，离线时它一步都省不掉 ——
+   * 表现就是"离线之后点一下，等好久才响"。
+   *
+   * 但这批词是**提前就知道的**：进一个关卡时，这一组的 12~15 个词已经定下来了；
+   * 复习、听写也一样。既然如此，就没有理由等手指按下去才开始干活。
+   *
+   * 做法：用 Web Audio 把它们提前解成 AudioBuffer 存内存，播放时用
+   * AudioBufferSourceNode —— start() 之后几十毫秒出声，不碰网络、不碰 SW、不解码。
+   * 解压本身在后台线程，不占主线程，也不会卡住页面。
+   *
+   * 兜底层不变：没解到（词组、没缓存、浏览器不支持）就还走原来那条 <audio>。
+   */
+  var bufCache = {};      // 站内地址 -> AudioBuffer
+  var bufOrder = [];      // 最近用过的顺序，用来淘汰
+  var bufBytes = 0;
+  var BUF_MAX_ITEMS = 80;                    // 一组题 15 个词，80 个够好几组来回
+  var BUF_MAX_BYTES = 16 * 1024 * 1024;      // 解码后是 float32，比 mp3 大二十来倍
+  var decoding = {};      // 站内地址 -> 正在下/正在解，避免同一个词排队两次
+  var decQueue = [], decActive = 0, DEC_PAR = 3;  // 并发解码：3 路，够快又不抢主线程
+  var actx = null;
+  var currentNode = null; // 正在播的 AudioBufferSourceNode
+
+  function getCtx() {
+    if (actx) return actx;
+    var C = null;
+    try { C = global.AudioContext || global.webkitAudioContext; } catch (e) {}
+    if (!C) return null;
+    try { actx = new C(); } catch (e) { actx = null; }
+    return actx;
+  }
+
+  /* iOS 的 AudioContext 必须在用户手势里 create/resume 过一次，
+   * 否则一直是 suspended：start() 干干净净地跑完，一点声音都没有，也不报错。
+   * 所以在第一下手势上开一次，之后全程用同一个 ctx。 */
+  var unlocked = false;
+  function unlock() {
+    var c = getCtx();
+    if (!c) return;
+    try { if (c.state === "suspended" && c.resume) c.resume(); } catch (e) {}
+    if (unlocked) return;
+    unlocked = true;
+    // 播一个 1 采样静音：安卓上这一步能把输出通道真正打开，
+    // 省掉首播那两三百毫秒的"设备启动"等待
+    try {
+      var b = c.createBuffer(1, 1, c.sampleRate || 22050);
+      var s = c.createBufferSource();
+      s.buffer = b;
+      s.connect(c.destination);
+      s.start(0);
+    } catch (e) {}
+  }
+  function bindUnlock() {
+    if (!global.document || typeof global.document.addEventListener !== "function") return;
+    var evs = ["pointerdown", "touchend", "mousedown", "keydown"];
+    var h = function () {
+      unlock();
+      for (var i = 0; i < evs.length; i++) {
+        try { global.document.removeEventListener(evs[i], h, true); } catch (e) {}
+      }
+    };
+    for (var i = 0; i < evs.length; i++) {
+      try { global.document.addEventListener(evs[i], h, { capture: true, passive: true }); } catch (e) {}
+    }
+  }
+
+  function bufSize(b) {
+    if (!b) return 0;
+    var ch = b.numberOfChannels || 1;
+    var n = b.length || 0;
+    return ch * n * 4; // float32
+  }
+
+  function putBuf(key, buf) {
+    if (!buf) return;
+    var ix = bufOrder.indexOf(key);
+    if (ix >= 0) bufOrder.splice(ix, 1);
+    bufBytes += bufSize(buf) - (bufCache[key] ? bufSize(bufCache[key]) : 0);
+    bufCache[key] = buf;
+    bufOrder.push(key);
+    // 淘汰：先按条数，再按内存。淘汰掉的只是"加速缓存"，不是离线能力 ——
+    // 真播的时候还能从本机缓存重新解，只是慢一点。
+    while (bufOrder.length > BUF_MAX_ITEMS || (bufBytes > BUF_MAX_BYTES && bufOrder.length > 1)) {
+      var old = bufOrder.shift();
+      if (!old || old === key) break;
+      bufBytes -= bufSize(bufCache[old]);
+      delete bufCache[old];
+    }
+    if (bufBytes < 0) bufBytes = 0;
+  }
+
+  function pumpDecode() {
+    while (decActive < DEC_PAR && decQueue.length) {
+      var job = decQueue.shift();
+      decActive++;
+      job(function () {
+        decActive--;
+        pumpDecode();
+      });
+    }
+  }
+
+  /* 把一个词解进内存。返回 false = 这个词进不了内存（词组、没有 ctx、已在队列里） */
+  function decodeWord(word) {
+    var src = localSrc(word);
+    if (!src) return false;
+    var c = getCtx();
+    if (!c || typeof c.decodeAudioData !== "function") return false;
+    if (bufCache[src] || decoding[src]) return false;
+    if (typeof global.fetch !== "function") return false;
+
+    decoding[src] = 1;
+    decQueue.push(function (done) {
+      // 排队期间可能被别的路径解掉了，别重复解
+      if (bufCache[src]) { delete decoding[src]; done(); return; }
+      var p;
+      try { p = global.fetch(src); } catch (e) { delete decoding[src]; done(); return; }
+      Promise.resolve(p)
+        .then(function (r) { return r && r.ok ? r.arrayBuffer() : null; })
+        .then(function (ab) {
+          if (!ab) { delete decoding[src]; done(); return; }
+          // 老版 Safari 的 decodeAudioData 只收回调、不返回 Promise，两种都兜
+          return new Promise(function (res, rej) {
+            var ret = null;
+            try { ret = c.decodeAudioData(ab, res, rej); } catch (e) { rej(e); return; }
+            if (ret && typeof ret.then === "function") ret.then(res, rej);
+          });
+        })
+        .then(function (buf) {
+          delete decoding[src];
+          if (buf) putBuf(src, buf);
+          done();
+        })
+        .catch(function () {
+          // 解不出来就当没这条捷径：播放时照旧走 <audio>，用户不会因此听不到
+          delete decoding[src];
+          done();
+        });
+    });
+    pumpDecode();
+    return true;
+  }
+
+  function stopBuffer() {
+    var n = currentNode;
+    currentNode = null;
+    if (!n) return;
+    try { n.onended = null; n.stop(0); } catch (e) {}
+  }
+
+  /* 从内存放一个词。返回 true 表示"这条路接了"，之后的成功/失败都通过回调给。
+   * onFail 用于"接不了"时让上层退回 <audio> —— 比如上下文被系统挂起、resume 被拒。 */
+  function playBuffer(word, hooks, finish, onFail) {
+    var key = localSrc(word);
+    var buf = key && bufCache[key];
+    if (!buf) return false;
+    var c = getCtx();
+    if (!c || typeof c.createBufferSource !== "function") return false;
+
+    var started = false, abandoned = false, node = null, guard = null, waitT = null;
+
+    function begin() {
+      if (started || abandoned) return;
+      started = true;
+      clearTimeout(waitT);
+      stopAudio();   // 上一个词还在响就先掐掉：连点两次不该两个声音叠在一起
+      try {
+        node = c.createBufferSource();
+        node.buffer = buf;
+        node.connect(c.destination);
+        node.onended = function () {
+          if (currentNode !== node) return;
+          currentNode = null;
+          clearTimeout(guard);
+          finish(true);
+        };
+        currentNode = node;
+        node.start(0);
+      } catch (e) {
+        currentNode = null;
+        started = false;
+        if (onFail) onFail("audio-busy"); else finish(false, "audio-busy");
+        return;
+      }
+      if (hooks && hooks.onStart) hooks.onStart();
+      // 极少数环境不派 ended：按长度兜一个底，别让按钮永远停在"播放中"
+      guard = setTimeout(function () {
+        if (currentNode !== node) return;
+        currentNode = null;
+        finish(true);
+      }, Math.round((buf.duration || 1) * 1000) + 800);
+      if (guard && typeof guard.unref === "function") guard.unref();
+    }
+
+    if (!c.state || c.state === "running") { begin(); return true; }
+
+    // 切后台回来是什么状态：iOS 叫 "interrupted"，安卓省电模式叫 "suspended"。
+    // 不 resume 就直接 start，会安安静静地什么都没有。
+    var p = null;
+    try { p = c.resume(); } catch (e) {}
+    if (p && typeof p.then === "function") {
+      p.then(begin, function () {
+        if (started || abandoned) return;
+        abandoned = true;
+        if (onFail) onFail("not-allowed"); else finish(false, "not-allowed");
+      });
+      // resume 偶尔既不 resolve 也不 reject（页面刚切回来）：700ms 还没动静就交给 <audio>
+      waitT = setTimeout(function () {
+        if (started || abandoned) return;
+        abandoned = true;
+        if (onFail) onFail("not-allowed"); else finish(false, "not-allowed");
+      }, 700);
+      if (waitT && typeof waitT.unref === "function") waitT.unref();
+    } else {
+      begin();
+    }
+    return true;
+  }
+
+  /* 进一组题时调用：把这组的词提前解进内存。
+   * 返回真正排进队列的个数（已被系统合成偏好跳过、或没有 Web Audio 时是 0）。 */
+  function preloadWords(words, opts) {
+    opts = opts || {};
+    if (pref() === "native" && !opts.force) return 0; // 用户明确要系统合成，别占内存
+    var c = getCtx();
+    if (!c || typeof c.decodeAudioData !== "function") return 0;
+    var n = 0;
+    for (var i = 0; i < (words || []).length; i++) {
+      var w = String(words[i] == null ? "" : words[i]);
+      if (!w) continue;
+      if (decodeWord(w)) n++;
+    }
+    return n;
+  }
+
   // 离线判断只用来决定「还要不要浪费一轮去请求外链」。
   // online 事件不可靠（连着 WiFi 但没有出口也会报 true），所以它只做"提前跳过"，不做"禁止"。
   function online() {
@@ -226,28 +465,52 @@
   function speakViaAudio(text, hooks, finish, onFail) {
     var word = String(text).trim();
     if (!word) { finish(false, "empty"); return false; }
-    if (typeof global.Audio !== "function") { fail("unsupported"); return false; }
 
-    // 每一路音源都先算出地址，算不出地址的（比如词组没有站内文件）直接不排进候选，
-    // 否则会在一个空 src 上浪费一次重试 —— 手机上就是多等 4 秒。
-    var sources = audioSources(), cands = [];
-    for (var s = 0; s < sources.length; s++) {
-      var u = sources[s](word);
-      if (u) cands.push(u);
-    }
+    var hasEl = typeof global.Audio === "function";
+    if (!hasEl && !getCtx()) { fail("unsupported"); return false; }
 
-    stopAudio();
-    var idx = 0;
-    playNext();
-    return true;
+    var elementDone = false;
+    var cands = [], idx = 0;   // 候选音源与游标：viaElement 里填，playNext 里走
 
     function fail(reason) { if (onFail) onFail(reason); else finish(false, reason); }
 
+    /* 快路：这个词已经预解码在内存里 → 直接 start()，几十毫秒出声。
+     * 走不到就（或走到一半被系统挂起）落到下面的 <audio>，行为和以前一样。 */
+    if (playBuffer(word, hooks, finish, viaElement)) return true;
+    viaElement();
+    return true;
+
+    function viaElement() {
+      if (elementDone) return;
+      elementDone = true;
+      if (!hasEl) { fail("audio-unavailable"); return; }
+
+      // 没预解码到（第一次见这个词）就在这里补一次，下一次点就是"立刻响"
+      decodeWord(word);
+
+      // 每一路音源都先算出地址，算不出地址的（比如词组没有站内文件）直接不排进候选，
+      // 否则会在一个空 src 上浪费一次重试 —— 手机上就是多等 4 秒。
+      var sources = audioSources();
+      cands = [];
+      for (var s = 0; s < sources.length; s++) {
+        var u = sources[s](word);
+        if (u) cands.push(u);
+      }
+
+      stopAudio();
+      idx = 0;
+      playNext();
+    }
+
     function playNext() {
       if (idx >= cands.length) { fail("audio-unavailable"); return; }
-      var a;
-      try { a = new global.Audio(cands[idx++]); }
-      catch (e) { fail("audio-unavailable"); return; }
+      var src = cands[idx++];
+      // 预取过的元素直接用：否则同一个地址要被请求两次，点下去还得再等一轮
+      var a = takePrefetched(src);
+      if (!a) {
+        try { a = new global.Audio(src); }
+        catch (e) { fail("audio-unavailable"); return; }
+      }
 
       currentAudio = a;
       a.preload = "auto";
@@ -838,6 +1101,14 @@
    * 站内 mp3 也一起预取：手机上同源文件虽然快，但第一次仍要读盘 + 解码。 */
   var prefetchCache = {}, prefetchKeys = [];
 
+  // 别让预取无限长：只留最近 24 条地址（一组题 15 个词 + 几句整句，够用）
+  function trimPrefetch() {
+    while (prefetchKeys.length > 24) {
+      var old = prefetchKeys.shift();
+      try { delete prefetchCache[old]; } catch (e) {}
+    }
+  }
+
   // 取用预取好的元素：取走就删，一次预取只服务一次播放
   function takePrefetched(u) {
     var a = prefetchCache[u];
@@ -881,10 +1152,7 @@
       } catch (e) {}
     }
     // 别让缓存无限长：只留最近 24 条地址
-    while (prefetchKeys.length > 24) {
-      var old = prefetchKeys.shift();
-      try { delete prefetchCache[old]; } catch (e) {}
-    }
+    trimPrefetch();
     return got;
   }
 
@@ -919,19 +1187,26 @@
   }
 
   /* ---------- 诊断（"为什么没声音"找原因） ---------- */
-  /* 预取录音：题目一出现就把音频下到缓存里，点喇叭时不用等那 300ms */
+  /* 预取录音：题目一出现就先备好，点喇叭时不用等。
+   * 两件事都做：① 解进内存（点下去几十毫秒出声，离线尤其明显）；
+   *              ② 留一个已开始加载的 <audio> 备用（内存那路不可用时直接接管）。 */
   function prefetch(text) {
     if (pref() === "native") return;
     var w = String(text || "").trim();
-    if (!w || typeof global.Audio !== "function") return;
+    if (!w) return;
+    decodeWord(w);
+    if (typeof global.Audio !== "function") return;
     // 第一路可能算不出地址（词组没有站内文件、离线时不排外链），别拿空串去建 <audio>
     var src = audioSources()[0](w);
-    if (!src) return;
+    if (!src || prefetchCache[src]) return;   // 已经备过就别再建一个
     try {
       var a = new global.Audio(src);
       a.preload = "auto";
       a.muted = true;
       if (a.load) a.load();
+      prefetchCache[src] = a;
+      prefetchKeys.push(src);
+      trimPrefetch();
     } catch (e) {}
   }
 
@@ -945,7 +1220,9 @@
     var list = [], seen = {};
     for (var i = 0; i < (words || []).length; i++) {
       var s = localSrc(words[i]);
-      if (s && !seen[s]) { seen[s] = 1; list.push(s); }
+      // 已经解进内存（或正在解）的词不用再取一次：取它的那次请求已经把文件
+      // 落到本机缓存了。否则进关卡时同一批词会被请求两遍。
+      if (s && !seen[s] && !bufCache[s] && !decoding[s]) { seen[s] = 1; list.push(s); }
     }
     if (!list.length) return 0;
 
@@ -1003,10 +1280,15 @@
           voiceCache = null;
           resumeIfPaused(getSynth());
           pickVoice();
+          // 切回来时 Web Audio 可能是 suspended：不恢复，内存那一路就是"静音播放"
+          try { var c = getCtx(); if (c && c.state === "suspended" && c.resume) c.resume(); } catch (e) {}
         }
       });
     }
   } catch (e) {}
+
+  // 第一下手势上把音频输出通道打开（iOS 要求；安卓能省掉首播的设备启动延迟）
+  try { bindUnlock(); } catch (e) {}
 
   global.VQSpeech = {
     speak: speak,
@@ -1027,6 +1309,9 @@
     voices: VOICES.map(function (v) { return { id: v.id, name: v.name }; }),
     prefetch: prefetch,
     prefetchMany: prefetchMany,
+    // 把这组词提前解进内存：进关卡 / 开一组复习时调一次，点播放就几乎零等待
+    preloadWords: preloadWords,
+    unlockAudio: unlock,
     // 站内录音地址（纯函数，便于单测）：词组/非法词条返回空串，表示只能走在线那一路
     localSrc: localSrc,
     prefetchCloud: prefetchCloud,

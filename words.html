@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
 <link rel="canonical" href="https://zbqt.github.io/vocab-quest/words.html">
-<link rel="stylesheet" href="./ui.css?v=0.17.2">
+<link rel="stylesheet" href="./ui.css?v=0.18.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
@@ -141,7 +141,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
   </div>
 </main>
 
-<script src="tts.js?v=0.17.2"></script>
+<script src="tts.js?v=0.18.0"></script>
 <script>
 /* ================= 词库页 =================
    1. 只下载当前这套词库。以前四套全加载（约 540KB），其中 3/4 从头到尾没用上。
@@ -233,11 +233,35 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
     return esc(text.slice(0,i))+"<mark>"+esc(text.slice(i,i+kw.length))+"</mark>"+esc(text.slice(i+kw.length));
   }
 
+  /* 滚到哪一行，就把那一行的发音解进内存 —— 点喇叭时不用再等解码。
+     为什么不整个单元预解码：一个单元几百个词，全解一遍要好几 MB 内存，
+     而用户真正会点的，其实就是屏幕上这一屏。 */
+  var audioWatch=null;
+  function watchAudio(list){
+    if(!list||!window.VQSpeech||!VQSpeech.preloadWords)return;
+    if(typeof IntersectionObserver!=="function")return;
+    if(!audioWatch){
+      audioWatch=new IntersectionObserver(function(rows){
+        var batch=[];
+        rows.forEach(function(r){
+          if(!r.isIntersecting)return;
+          var b=r.target.querySelector("button[data-w]");
+          var w=b&&b.getAttribute("data-w");
+          if(w)batch.push(w);
+          audioWatch.unobserve(r.target);
+        });
+        if(batch.length){try{VQSpeech.preloadWords(batch);}catch(e){}}
+      },{rootMargin:"300px 0px"});
+    }
+    [].forEach.call(list.querySelectorAll(".w-row"),function(r){audioWatch.observe(r);});
+  }
+
   function renderUnit(idx){
     var u=DATA[idx],list=UNITS_EL[idx].querySelector(".word-list");
     if(!list||rendered[idx]&&!KW)return;
     list.innerHTML=u.words.map(function(w){return rowHTML(w,KW);}).join("");
     rendered[idx]=true;
+    watchAudio(list);
   }
 
   function build(){
@@ -288,6 +312,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
         else if(d.open&&!rendered[i])renderUnit(i);
         else if(rendered[i]){ // 搜索时换过 HTML，恢复成全量
           list.innerHTML=u.words.map(function(w){return rowHTML(w,"");}).join("");
+          watchAudio(list);
         }
         if(!d.open&&!rendered[i])list.innerHTML="";
       });
@@ -309,7 +334,9 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
       if(!slice.length){d.style.display="none";d.open=false;rendered[i]=false;return;}
       d.style.display="";
       d.open=true;
-      d.querySelector(".word-list").innerHTML=slice.map(function(w){return rowHTML(w,kw);}).join("");
+      var sl=d.querySelector(".word-list");
+      sl.innerHTML=slice.map(function(w){return rowHTML(w,kw);}).join("");
+      watchAudio(sl);
       d.querySelector(".u-count").textContent=slice.length===m.length?(m.length+" 词命中"):(slice.length+"/"+m.length+" 条");
       rendered[i]=false;
     });
@@ -349,7 +376,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
   };
   if(CFG.get()){start();return;}
   var s=document.createElement("script");
-  s.src=CFG.file+"?v=0.17.2";
+  s.src=CFG.file+"?v=0.18.0";
   s.onload=start;
   s.onerror=fail;
   document.body.appendChild(s);
@@ -379,6 +406,6 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
   };
 })();
 </script>
-<script src="sw-client.js?v=0.17.2"></script>
+<script src="sw-client.js?v=0.18.0"></script>
 </body>
 </html>
