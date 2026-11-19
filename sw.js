@@ -9,7 +9,7 @@
  *
  * 发布新版只需把 VERSION 加一。
  */
-const VERSION = "vq-v25";
+const VERSION = "vq-v26";
 const AUDIO_CACHE = "vq-audio-v1";
 
 const ASSETS = [
@@ -196,7 +196,7 @@ self.addEventListener("fetch", (e) => {
   }
 
   e.respondWith(
-    // ignoreSearch：页面引用脚本时会带 ?v=0.16.0 这类版本串，而预缓存里存的是不带串的地址。
+    // ignoreSearch：页面引用脚本时会带 ?v=0.17.0 这类版本串，而预缓存里存的是不带串的地址。
     // 不忽略 query 的话，带串的请求永远命中不了缓存 —— 断网时整页脚本都拿不到。
     // 静态资源不需要按 query 区分版本，VERSION 已经区分了。
     caches.match(req, { ignoreSearch: true }).then((hit) => {

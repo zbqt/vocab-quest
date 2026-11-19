@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
-<link rel="stylesheet" href="./ui.css?v=0.16.0">
+<link rel="stylesheet" href="./ui.css?v=0.17.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
@@ -114,6 +114,8 @@ h1{font-size:30px;line-height:1.28;font-weight:800;letter-spacing:-.3px;margin:7
 .cta:active{transform:translateY(0)}
 .cta-note{font-size:12px;color:var(--vq-ink-3)}
 .cta-note b{color:var(--vq-ink-2)}
+.cta-alt{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:50px;padding:0 18px;border-radius:14px;background:#fff;border:1px solid var(--vq-line-strong);color:var(--vq-ink-2);font-size:14px;font-weight:800;text-decoration:none;transition:background .16s,border-color .16s,color .16s,transform .16s}
+.cta-alt:hover{background:#f0fdff;border-color:#7dd3e0;color:#0b6e7a;transform:translateY(-2px)}
 
 /* ---------- 区块通用 ---------- */
 section{margin-top:34px}
@@ -154,6 +156,10 @@ h2{font-size:18px;font-weight:800;letter-spacing:-.2px}
 .tool.listen{background:linear-gradient(150deg,#f7f5ff,#fff)}
 .tool.dict{background:linear-gradient(150deg,#fff8ee,#fff)}
 .tool.rescue{background:linear-gradient(150deg,#fff5f5,#fff)}
+
+/* ---------- 离线发音包 ---------- */
+#offline{scroll-margin-top:18px}
+.offline-tip{font-size:12px;color:var(--vq-ink-3);line-height:1.8;margin-top:10px;max-width:62ch}
 
 /* ---------- 怎么用 ---------- */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;counter-reset:s}
@@ -204,6 +210,7 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
   .stage{padding:17px 17px 13px}
   .stage-desc{min-height:0}
   .cta{width:100%}
+  .cta-alt{width:100%}
   .cta-note{width:100%;text-align:center}
   section{margin-top:26px}
   .foot-grid{grid-template-columns:1fr 1fr;gap:14px 18px}
@@ -249,6 +256,7 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
       </div>
       <div class="cta-row">
         <a class="cta" id="mainCta" href="game.html?cat=cet4">开始今天的学习 →</a>
+        <a class="cta-alt" id="ctaOffline" href="#offline">📥 装离线发音包</a>
         <span class="cta-note" id="ctaNote">第一次来？先做 3 分钟定级测试，认识的词不再重复学。</span>
       </div>
       <noscript><p class="noscript">这个页面需要开启 JavaScript 才能计算复习计划和播放发音。</p></noscript>
@@ -340,6 +348,15 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
       </div>
     </section>
 
+    <section id="offline" aria-labelledby="secOffline">
+      <div class="sec-head">
+        <h2 id="secOffline">离线也能听</h2>
+        <span class="sec-note">地铁、宿舍断网时最管用</span>
+      </div>
+      <div id="offlinePack"></div>
+      <p class="offline-tip">平时是「听到哪个词就存哪个词」，这个包把没存过的补齐 —— 下完之后断网也能听见任何一个词，不用等联网。</p>
+    </section>
+
     <section aria-labelledby="secHow">
       <div class="sec-head"><h2 id="secHow">怎么用</h2></div>
       <div class="steps">
@@ -358,7 +375,7 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
         </details>
         <details>
           <summary>断网能用吗？<span class="chev" aria-hidden="true">▾</span></summary>
-          <div class="ans">能。第一次打开会把页面、词库和整句录音缓存到本机，之后断网也能闯关、复习、做听写。单词录音是边学边存在本机的——学过的词断网照样能听，没学过的词退回系统自带的语音包。</div>
+          <div class="ans">能。第一次打开会把页面、词库和整句录音缓存到本机，之后断网也能闯关、复习、做听写。单词录音默认是边学边存：学过的词断网照样能听，没学过的词退回系统自带的语音包。想把每一个词都离线听，网好的时候在首页「<a href="#offline">离线也能听</a>」里点<b>下载到本机</b>，一次存完约 27MB，之后断网听哪一个词都行。</div>
         </details>
         <details>
           <summary>「今天该学什么」是怎么算的？<span class="chev" aria-hidden="true">▾</span></summary>
@@ -406,9 +423,10 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
   </footer>
 </div>
 
-<script src="stats.js?v=0.16.0"></script>
-<script src="tts.js?v=0.16.0"></script>
-<script src="cloud-sync.js?v=0.16.0"></script>
+<script src="stats.js?v=0.17.0"></script>
+<script src="tts.js?v=0.17.0"></script>
+<script src="offline-pack.js?v=0.17.0"></script>
+<script src="cloud-sync.js?v=0.17.0"></script>
 <script>
 /* ============ 1. 词库规模：只读统计文件（0.4KB），不下载 700KB 词库 ============ */
 (function(){
@@ -520,13 +538,21 @@ footer{margin-top:auto;padding:40px 0 calc(34px + env(safe-area-inset-bottom))}
 })();
 </script>
 <script>
-/* ============ 3. 云端存档：首页只负责登录与查看，同步在各词库页里 ============ */
+/* ============ 3. 离线发音包：入口就在首页，不用先钻进某一本书 ============
+   之前只有闯关页有这个卡片，用户找不到「下载」在哪 —— 位置比功能更容易劝退。 */
+(function(){
+  var host=document.getElementById("offlinePack");
+  if(host&&window.VQOffline)VQOffline.mountPack(host);
+})();
+</script>
+<script>
+/* ============ 4. 云端存档：首页只负责登录与查看，同步在各词库页里 ============ */
 if(window.VQCloud){
   VQCloud.mount(document.getElementById("cloudMount"),{});
 }
 </script>
 <script>
-/* ============ 4. 自助诊断：手机端说不清环境，就把事实摆出来，截图即可定位 ============ */
+/* ============ 5. 自助诊断：手机端说不清环境，就把事实摆出来，截图即可定位 ============ */
 (function(){
   var btn=document.getElementById("helpLink"),box=document.getElementById("helpBox");
   if(!btn||!box)return;
@@ -589,7 +615,7 @@ if(window.VQCloud){
 })();
 </script>
 <script>
-/* ============ 5. 离线缓存：只在安全上下文注册（https / localhost）；file:// 与局域网 http 静默跳过 ============ */
+/* ============ 6. 离线缓存：只在安全上下文注册（https / localhost）；file:// 与局域网 http 静默跳过 ============ */
 if("serviceWorker" in navigator && (isSecureContext||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
   addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
 }

@@ -1661,6 +1661,11 @@ function fakeCacheStore(preload = []) {
   };
 }
 
+/* 面板由 offline-pack.js 的 mountPack 生成，DOM 用类名而不是 id —— 首页和闯关页
+   各挂一份，id 会重（同一页只有一个，但类名更经得起以后再多挂一处）。 */
+const packBtn = (ctx) => ctx.$("packCard").querySelector(".vq-pack-btn");
+const packMeta = (ctx) => ctx.$("packCard").querySelector(".vq-pack-meta");
+
 test("离线发音包：本机已存过一部分时，卡片报出真实数量而不是说谎", async () => {
   const store = fakeCacheStore(["audio/w/ab/able.mp3", "audio/w/te/tell.mp3"]);
   const ctx = boot("cet4", { caches: store });
@@ -1668,15 +1673,69 @@ test("离线发音包：本机已存过一部分时，卡片报出真实数量�
 
   const card = ctx.$("packCard");
   assert.ok(card, "首页应该有离线发音包入口");
-  assert.notEqual(card.style.display, "none", "支持缓存时不该隐藏");
-  assert.match(ctx.$("packMeta").textContent, /本机已有 2 个词/, "实际文案：" + ctx.$("packMeta").textContent);
-  assert.equal(ctx.$("packBtn").textContent, "下载");
+  assert.ok(card.querySelector(".vq-pack-btn"), "支持缓存时应该画出下载按钮");
+  assert.match(packMeta(ctx).textContent, /本机已有 2 个词/, "实际文案：" + packMeta(ctx).textContent);
+  assert.equal(packBtn(ctx).textContent, "下载到本机");
 });
 
-test("离线发音包：设备不支持缓存时整块隐藏，不留一个点了没反应的按钮", async () => {
+/* 首页也要有这个入口：当初只有闯关页有，用户翻遍首页找不到「下载」，
+   功能做了等于没做 —— 这条测试守的是「入口在哪」而不是「下载能不能跑」。 */
+const IDX = read("index.html");
+const IDX_INLINE = [...IDX.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)]
+  .filter((m) => !/\btype=/.test(m[1]))
+  .map((m) => m[2])
+  .join("\n");
+
+function bootIndex(cachesImpl) {
+  const dom = new JSDOM(IDX, { url: "http://localhost/index.html", runScripts: "outside-only", pretendToBeVisual: true });
+  const win = dom.window;
+  if (cachesImpl) win.caches = cachesImpl;
+  win.eval(read("stats.js") + "\n" + read("tts.js") + "\n" + read("offline-pack.js") + "\n" + IDX_INLINE);
+  return { win, doc: win.document, $: (id) => win.document.getElementById(id) };
+}
+
+test("首页就有离线发音包入口，不用先钻进某一本书", async () => {
+  const ctx = bootIndex(fakeCacheStore(["audio/w/ab/able.mp3"]));
+  await new Promise((r) => setTimeout(r, 20));
+
+  const host = ctx.$("offlinePack");
+  assert.ok(host, "首页要有挂载点");
+  const btn = host.querySelector(".vq-pack-btn");
+  assert.ok(btn, "首页要画得出下载按钮");
+  assert.equal(btn.textContent, "下载到本机");
+  assert.match(host.querySelector(".vq-pack-meta").textContent, /本机已有 1 个词/);
+  assert.equal(ctx.$("ctaOffline").getAttribute("href"), "#offline", "首屏要有直达离线区的入口");
+});
+
+test("首页离线包：点下载时只读一次清单，只补本机没有的", async () => {
+  const store = fakeCacheStore(["audio/w/ab/able.mp3"]);
+  const ctx = bootIndex(store);
+  const hits = [];
+  ctx.win.fetch = async (url) => {
+    const u = String(url);
+    if (u.indexOf("audio-manifest.json") >= 0) {
+      return { ok: true, status: 200, json: async () => ({ words: ["able", "tell"] }) };
+    }
+    hits.push(u.split("/").pop());
+    return { ok: true, status: 200 };
+  };
+  await new Promise((r) => setTimeout(r, 20));
+
+  const btn = ctx.$("offlinePack").querySelector(".vq-pack-btn");
+  btn.click();
+  for (let i = 0; i < 60 && /停止|准备中/.test(btn.textContent); i++) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.deepEqual(hits, ["tell.mp3"], "已存过的词不该重下");
+  assert.equal(btn.textContent, "删除");
+});
+
+test("离线发音包：设备不支持缓存时不留一个点了没反应的按钮", async () => {
   const ctx = boot("cet4");           // 不给 caches
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(ctx.$("packCard").style.display, "none");
+  const card = ctx.$("packCard");
+  assert.equal(card.querySelector("button"), null, "不支持缓存的浏览器不该给按钮");
+  assert.match(card.textContent, /不支持离线缓存/, "要说明为什么没有，而不是整块消失");
 });
 
 test("离线发音包：点下载会真的去取清单和音频，只补缺的", async () => {
@@ -1695,10 +1754,11 @@ test("离线发音包：点下载会真的去取清单和音频，只补缺的",
     return { ok: true, status: 200 };
   };
 
+  const btn = packBtn(ctx);
   await new Promise((r) => setTimeout(r, 20));
-  ctx.$("packBtn").click();
-  // 下载是并发的，等它跑完
-  for (let i = 0; i < 40 && ctx.$("packBtn").textContent === "停止"; i++) {
+  btn.click();
+  // 下载是并发的，等它跑完：先「准备中…」（读清单）再「停止」（正在下）
+  for (let i = 0; i < 60 && /停止|准备中/.test(btn.textContent); i++) {
     await new Promise((r) => setTimeout(r, 20));
   }
 
@@ -1709,6 +1769,6 @@ test("离线发音包：点下载会真的去取清单和音频，只补缺的",
     ["shortage.mp3", "tell.mp3"],
     "应该只下缺的两个"
   );
-  assert.equal(ctx.$("packBtn").textContent, "删除", "下完应变成可删除");
-  assert.match(ctx.$("packMeta").textContent, /断网也能听任何词/);
+  assert.equal(packBtn(ctx).textContent, "删除", "下完应变成可删除");
+  assert.match(packMeta(ctx).textContent, /断网也能听任何词/);
 });

@@ -133,6 +133,154 @@
     });
   }
 
+  /* 把「离线发音包」面板挂到容器里，返回控制器 { refresh, busy }。
+   *
+   * 首页和闯关页都要这个入口，但两处各写一份文案与状态机，迟早一处改成
+   * 「下载中」另一处还写着「下载」——所以 DOM 与状态机只留这一份。
+   * 样式在 ui.css 的 .vq-pack 段（四个页面都加载它）。
+   *
+   * 不支持 Cache API 时返回 null，并把容器换成一句实话：不支持的浏览器
+   * 留一个点了没反应的按钮，比不显示更糟。 */
+  function mountPack(host) {
+    if (!host) return null;
+    var st = { words: null, have: 0, busy: false, stop: false, failed: 0 };
+
+    if (!hasCache()) {
+      host.innerHTML =
+        '<p class="vq-pack-fallback">这个浏览器不支持离线缓存，换 Chrome / Edge / Safari 才能下载离线发音包。</p>';
+      return null;
+    }
+
+    host.classList.add("vq-pack");
+    host.innerHTML =
+      '<div class="vq-pack-main">' +
+        '<h3 class="vq-pack-title">📥 离线发音包</h3>' +
+        '<p class="vq-pack-desc"></p>' +
+        '<div class="vq-pack-bar" role="progressbar" aria-label="录音下载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i></i></div>' +
+        '<p class="vq-pack-meta" role="status" aria-live="polite"></p>' +
+      '</div>' +
+      '<button class="vq-pack-btn" type="button">…</button>';
+
+    var desc = host.querySelector(".vq-pack-desc");
+    var bar = host.querySelector(".vq-pack-bar");
+    var fill = bar.querySelector("i");
+    var meta = host.querySelector(".vq-pack-meta");
+    var btn = host.querySelector(".vq-pack-btn");
+
+    function mb(n) { return Math.round(n * 4.3 / 1024); }
+    function num(n) { try { return n.toLocaleString("zh-CN"); } catch (e) { return String(n); } }
+
+    function paint() {
+      var total = st.words ? st.words.length : 0;
+      var pct = total ? Math.min(100, Math.round(st.have / total * 100)) : 0;
+
+      bar.hidden = !st.busy;
+      fill.style.width = st.busy ? Math.max(2, pct) + "%" : "0%";
+      bar.setAttribute("aria-valuenow", String(pct));
+
+      if (st.busy) {
+        btn.textContent = "停止";
+        btn.disabled = false;
+        btn.setAttribute("data-act", "stop");
+        desc.textContent = "正在往本机存录音，别关这个页面";
+        meta.textContent = "已存 " + num(st.have) + " / " + (total ? num(total) : "?") +
+          " 个 · 中途退出也不要紧，再点一次只补缺的";
+        return;
+      }
+      if (total && st.have >= total) {
+        btn.textContent = "删除";
+        btn.disabled = false;
+        btn.setAttribute("data-act", "clear");
+        desc.textContent = "全部录音已存到本机，断网也能听";
+        meta.textContent = total + " 个词 · 约 " + mb(total) + "MB · 断网也能听任何词";
+        return;
+      }
+      btn.textContent = st.failed ? "重试缺的" : "下载到本机";
+      btn.disabled = false;
+      btn.setAttribute("data-act", "download");
+      desc.textContent = "把全部单词录音一次存到本机，断网时任何一个词都能听";
+      meta.textContent = st.have
+        ? "本机已有 " + num(st.have) + " 个词" + (total ? " / " + num(total) : "") + " · 继续下载只补缺的"
+        : "约 6,400 个小文件、共约 27MB，建议在 Wi-Fi 下进行";
+    }
+
+    function run() {
+      if (st.busy || !st.words) return;
+      st.busy = true; st.stop = false; st.failed = 0; paint();
+      download(st.words, {
+        concurrency: 4,
+        shouldStop: function () { return st.stop; },
+        onProgress: function (p) { st.have = p.skipped + p.done; paint(); }
+      }).then(function (r) {
+        st.busy = false; st.stop = false;
+        return scan().then(function (h) {
+          st.have = Object.keys(h).length;
+          st.failed = (r && r.failed) ? r.failed.length : 0;
+          paint();
+          if (st.failed) {
+            meta.textContent = "还有 " + st.failed + " 个没下成功，再点一次只补这些";
+          }
+        });
+      }).catch(function (e) {
+        st.busy = false; st.stop = false;
+        paint();
+        meta.textContent = "下载失败：" + ((e && e.message) || "网络问题") + " · 联网后再点一次";
+      });
+    }
+
+    btn.addEventListener("click", function () {
+      var act = btn.getAttribute("data-act");
+
+      if (act === "stop") {
+        st.stop = true;
+        btn.textContent = "正在停止…";
+        btn.disabled = true;
+        return;
+      }
+
+      if (act === "clear") {
+        if (typeof confirm === "function" &&
+            !confirm("删除本机已存的单词录音？之后断网时又只能靠系统语音了。")) return;
+        st.busy = true; paint();
+        clear().then(scan).then(function (h) {
+          st.have = Object.keys(h).length;
+          st.busy = false; st.failed = 0; paint();
+          meta.textContent = "本地录音已删除，腾出的空间归系统";
+        }).catch(function () {
+          st.busy = false; paint();
+          meta.textContent = "删除失败，刷新页面后再试";
+        });
+        return;
+      }
+
+      // 下载：先看清单在不在手上，第一次点才去拉那 61KB
+      if (st.words) return run();
+      st.busy = true;
+      btn.disabled = true;
+      btn.textContent = "准备中…";
+      desc.textContent = "正在读取录音清单…";
+      loadManifest().then(function (w) {
+        st.busy = false;
+        st.words = w;
+        run();
+      }).catch(function () {
+        st.busy = false;
+        paint();
+        meta.textContent = "清单读不出来，联网后刷新页面再试";
+      });
+    });
+
+    scan().then(function (h) { st.have = Object.keys(h).length; paint(); })
+      .catch(function () { paint(); });
+
+    return {
+      refresh: function () {
+        return scan().then(function (h) { st.have = Object.keys(h).length; paint(); });
+      },
+      isBusy: function () { return st.busy; }
+    };
+  }
+
   return {
     CACHE: CACHE,
     MANIFEST: MANIFEST,
@@ -142,6 +290,7 @@
     loadManifest: loadManifest,
     download: download,
     clear: clear,
+    mountPack: mountPack,
     supported: hasCache
   };
 });

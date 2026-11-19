@@ -75,6 +75,42 @@ select:focus-visible,
   }
 }
 
+/* ---------- 离线发音包面板 ----------
+   首页与闯关页共用同一份 DOM（offline-pack.js 的 mountPack 生成），
+   所以样式也必须在这里，不能留在某一页的 <style> 里。 */
+.vq-pack {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px 18px;
+  align-items: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #ecfeff, #f8fffe);
+  border: 1px solid #a5f3fc;
+  border-radius: var(--vq-r-lg);
+  box-shadow: var(--vq-shadow-1);
+}
+.vq-pack-main { min-width: 0; }
+.vq-pack-title { margin: 0 0 5px; font-size: 16px; font-weight: 800; color: var(--vq-ink); }
+.vq-pack-desc { margin: 0; font-size: 13px; line-height: 1.7; color: var(--vq-ink-2); }
+.vq-pack-bar { height: 8px; margin: 12px 0 8px; background: #d9f6fb; border-radius: 999px; overflow: hidden; }
+.vq-pack-bar i { display: block; height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, #22d3ee, #0e8fa0); transition: width .4s ease; }
+.vq-pack-meta { margin: 0; font-size: 12px; line-height: 1.7; color: var(--vq-ink-3); font-variant-numeric: tabular-nums; }
+.vq-pack-btn {
+  font: inherit; font-size: 14px; font-weight: 800; color: #0b6e7a;
+  background: #fff; border: 1px solid #7dd3e0; border-radius: 12px;
+  min-height: var(--vq-tap); min-width: 104px; padding: 0 20px;
+  cursor: pointer; flex: none; transition: background .15s, border-color .15s;
+}
+.vq-pack-btn:hover:not(:disabled) { background: #f0fdff; border-color: #22d3ee; }
+.vq-pack-btn:disabled { opacity: .55; cursor: default; }
+.vq-pack-fallback { margin: 0; font-size: 13px; line-height: 1.8; color: var(--vq-ink-3); }
+
+@media (max-width: 600px) {
+  .vq-pack { grid-template-columns: 1fr; padding: 16px; }
+  .vq-pack-btn { width: 100%; }
+}
+
 /* 只给屏幕阅读器的文字（图标按钮必须靠它才有名字） */
 .vq-sr-only {
   position: absolute !important;
