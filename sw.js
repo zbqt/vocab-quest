@@ -9,7 +9,7 @@
  *
  * 发布新版只需把 VERSION 加一。
  */
-const VERSION = "vq-v27";
+const VERSION = "vq-v28";
 const AUDIO_CACHE = "vq-audio-v1";
 
 const ASSETS = [

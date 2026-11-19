@@ -191,17 +191,17 @@
         btn.textContent = "删除";
         btn.disabled = false;
         btn.setAttribute("data-act", "clear");
-        desc.textContent = "全部录音已存到本机，断网也能听";
+        desc.textContent = "全部录音已存到本机（四本书去重），断网也能听";
         meta.textContent = total + " 个词 · 约 " + mb(total) + "MB · 断网也能听任何词";
         return;
       }
       btn.textContent = st.failed ? "重试缺的" : "下载到本机";
       btn.disabled = false;
       btn.setAttribute("data-act", "download");
-      desc.textContent = "把全部单词录音一次存到本机，断网时任何一个词都能听";
+      desc.textContent = "把四本书去重后的全部单词录音一次存到本机，断网时任何一个词都能听";
       meta.textContent = st.have
         ? "本机已有 " + num(st.have) + " 个词" + (total ? " / " + num(total) : "") + " · 继续下载只补缺的"
-        : "约 6,400 个小文件、共约 27MB，建议在 Wi-Fi 下进行";
+        : "四本书去重后约 6,400 个词、共约 27MB，建议在 Wi-Fi 下进行";
     }
 
     function run() {

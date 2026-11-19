@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="64x64" href="./icons/icon-64.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
 <link rel="canonical" href="https://zbqt.github.io/vocab-quest/words.html">
-<link rel="stylesheet" href="./ui.css?v=0.17.1">
+<link rel="stylesheet" href="./ui.css?v=0.17.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vocab Quest">
@@ -141,7 +141,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
   </div>
 </main>
 
-<script src="tts.js?v=0.17.1"></script>
+<script src="tts.js?v=0.17.2"></script>
 <script>
 /* ================= 词库页 =================
    1. 只下载当前这套词库。以前四套全加载（约 540KB），其中 3/4 从头到尾没用上。
@@ -349,7 +349,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
   };
   if(CFG.get()){start();return;}
   var s=document.createElement("script");
-  s.src=CFG.file+"?v=0.17.1";
+  s.src=CFG.file+"?v=0.17.2";
   s.onload=start;
   s.onerror=fail;
   document.body.appendChild(s);
@@ -379,6 +379,6 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
   };
 })();
 </script>
-<script src="sw-client.js?v=0.17.1"></script>
+<script src="sw-client.js?v=0.17.2"></script>
 </body>
 </html>
