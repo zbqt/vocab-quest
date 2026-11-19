@@ -237,23 +237,24 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
      为什么不整个单元预解码：一个单元几百个词，全解一遍要好几 MB 内存，
      而用户真正会点的，其实就是屏幕上这一屏。 */
   var audioWatch=null;
-  function watchAudio(list){
-    if(!list||!window.VQSpeech||!VQSpeech.preloadWords)return;
+  function watchAudio(){
+    if(!window.VQSpeech||!VQSpeech.preloadWords)return;
     if(typeof IntersectionObserver!=="function")return;
-    if(!audioWatch){
-      audioWatch=new IntersectionObserver(function(rows){
-        var batch=[];
-        rows.forEach(function(r){
-          if(!r.isIntersecting)return;
-          var b=r.target.querySelector("button[data-w]");
-          var w=b&&b.getAttribute("data-w");
-          if(w)batch.push(w);
-          audioWatch.unobserve(r.target);
-        });
-        if(batch.length){try{VQSpeech.preloadWords(batch);}catch(e){}}
-      },{rootMargin:"300px 0px"});
-    }
-    [].forEach.call(list.querySelectorAll(".w-row"),function(r){audioWatch.observe(r);});
+    // 每次重渲染都换一个新的 observer：行是 innerHTML 重建的，旧的行已经不在文档里，
+    // 继续被观察着只是占内存（而且永远不会再触发）。
+    if(audioWatch)audioWatch.disconnect();
+    audioWatch=new IntersectionObserver(function(rows){
+      var batch=[];
+      rows.forEach(function(r){
+        if(!r.isIntersecting)return;
+        var b=r.target.querySelector("button[data-w]");
+        var w=b&&b.getAttribute("data-w");
+        if(w)batch.push(w);
+        audioWatch.unobserve(r.target);
+      });
+      if(batch.length){try{VQSpeech.preloadWords(batch);}catch(e){}}
+    },{rootMargin:"300px 0px"});
+    [].forEach.call(unitsBox.querySelectorAll(".w-row"),function(r){audioWatch.observe(r);});
   }
 
   function renderUnit(idx){
@@ -261,7 +262,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
     if(!list||rendered[idx]&&!KW)return;
     list.innerHTML=u.words.map(function(w){return rowHTML(w,KW);}).join("");
     rendered[idx]=true;
-    watchAudio(list);
+    watchAudio();
   }
 
   function build(){
@@ -312,7 +313,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
         else if(d.open&&!rendered[i])renderUnit(i);
         else if(rendered[i]){ // 搜索时换过 HTML，恢复成全量
           list.innerHTML=u.words.map(function(w){return rowHTML(w,"");}).join("");
-          watchAudio(list);
+          watchAudio();
         }
         if(!d.open&&!rendered[i])list.innerHTML="";
       });
@@ -336,7 +337,7 @@ mark{background:#fff3c4;color:inherit;border-radius:3px;padding:0 1px}
       d.open=true;
       var sl=d.querySelector(".word-list");
       sl.innerHTML=slice.map(function(w){return rowHTML(w,kw);}).join("");
-      watchAudio(sl);
+      watchAudio();
       d.querySelector(".u-count").textContent=slice.length===m.length?(m.length+" 词命中"):(slice.length+"/"+m.length+" 条");
       rendered[i]=false;
     });
